@@ -1,5 +1,6 @@
 import geopandas
 import pandas
+import tobler
 geopandas.options.use_pygeos = True
 
 print("Loading block group data tables")
@@ -30,6 +31,14 @@ tdf["E_AS"] = tdf["JN9E012"] +tdf["JN9E013"] +tdf["JN9E014"] + tdf["JN9E029"] +t
 tdf["E_BA"] = tdf["JN9E015"] + tdf["JN9E028"]
 tdf["E_AD"] = tdf["JN9E016"] +tdf["JN9E017"] +tdf["JN9E018"] + tdf["JN9E033"] +tdf["JN9E034"] +tdf["JN9E035"]
 tdf["TotalIncome"] = tdf["JQLE001"]
+
+dataCols = ["Population", "S_Male", "S_Female"
+            , "A_Under18", "A_18To24", "A_25To44", "A_45To64", "A_65AndOver"
+            , "R_White", "R_Black", "R_Asian", "R_Other"
+            , "Eth_Hispanic", "Eth_NotHispanic"
+            , "E_L9", "E_9To12", "E_HSGrad", "E_AS", "E_BA", "E_AD"
+            , "TotalIncome"
+            ]
 
 dataTable = tdf[["GISJOIN", "BLKGRPA", "StateName", "StateFIPS"
                  , "Population", "S_Male", "S_Female"
@@ -63,12 +72,27 @@ print("Re-projecting block groups to match coordinate system of districts")
 blk_grp_geo = blk_grp_geo.to_crs(cd_geo.crs)
 print (blk_grp_geo.crs)
 
-print("Intersecting block groups with districts")
-blk_grps_with_cd = geopandas.sjoin(blk_grp_geo, cd_geo, how="inner", op="intersects")
-print(blk_grps_with_cd.head())
+print("Intersecting block groups with districts using areal interpolation")
+blk_grps_interp = tobler.area_weighted.area_interpolate(blk_grp_geo, cd_geo, extensive_variables=dataCols)
+print(blk_grps_interp.head())
 
-print("dissolving block groups to districts")
-cds_with_data_geo = blk_grps_with_cd.dissolve(by=["STATEFP10","CongressionalDistrict"], as_index=False, aggfunc='sum')
+#blk_grps_with_cd = geopandas.sjoin(blk_grp_geo, cd_geo, how="inner", op="intersects")
+#print(blk_grps_with_cd.head())
 
-print("Writing merged/dissolved shapefile")
-cds_with_data_geo.to_file("output_data/US_2010_districts/US_2010_districts.shp")
+#blk_grp_data = blk_grps_with_cd[["GISJOIN", "BLKGRPA", "StateName", "STATEFP", "CongressionalDistrict"
+#                                 , "Population", "S_Male", "S_Female"
+#                                 , "A_Under18", "A_18To24", "A_25To44", "A_45To64", "A_65AndOver"
+#                                 , "R_White", "R_Black", "R_Asian", "R_Other"
+#                                 , "Eth_Hispanic", "Eth_NotHispanic"
+#                                 , "E_L9", "E_9To12", "E_HSGrad", "E_AS", "E_BA", "E_AD"
+#                                 , "TotalIncome"
+#
+#]]
+##print (blk_grp_data.head())
+blk_grp_interp[['StateFP','CD116FP'] + dataCols].to_csv("output_data/US_2010_blk_grps_merged/US_2010_blk_grps.csv")
+
+#print("dissolving block groups to districts")
+#cds_with_data_geo = blk_grps_with_cd.dissolve(by=["GEOID"], as_index=False, aggfunc='sum')
+
+#print("Writing merged/dissolved shapefile")
+#cds_with_data_geo.to_file("output_data/US_2010_districts/US_2010_districts.shp")
