@@ -2,11 +2,13 @@ import geopandas
 import pandas
 geopandas.options.use_pygeos = True
 
-print("Loading associated data tables")
+print("Loading block group data tables")
 tdf = pandas.read_csv("input_data/NHGIS/US_2010_blk_grp_csv/nhgis0002_ds176_20105_2010_blck_grp.csv", encoding='latin-1')
 print(tdf.head())
 
-print("Simpifying data")
+print("Simpifying block group data")
+tdf["StateFIPS"] = tdf["STATEA"]
+tdf["StateName"] = tdf["STATE"]
 tdf["Population"] = tdf["JLZE001"]
 tdf["S_Male"] = tdf["JLZE002"]
 tdf["S_Female"] = tdf["JLZE026"]
@@ -19,21 +21,54 @@ tdf["R_White"] = tdf["JMBE002"]
 tdf["R_Black"] = tdf["JMBE003"]
 tdf["R_Asian"] = tdf["JMBE005"]
 tdf["R_Other"] = tdf["JMBE004"] + tdf["JMBE006"] + tdf["JMBE007"] + tdf["JMBE008"] + tdf["JMBE009"] + tdf["JMBE010"]
-tdf["E_Hispanic"] = tdf["JMKE003"]
-tdf["E_NotHispanic"] = tdf["JMKE002"]
+tdf["Eth_Hispanic"] = tdf["JMKE003"]
+tdf["Eth_NotHispanic"] = tdf["JMKE002"]
+tdf["E_L9"] = tdf["JN9E003"] + tdf["JN9E004"] + tdf["JN9E005"] + tdf["JN9E006"] +  tdf["JN9E020"] + tdf["JN9E021"] + tdf["JN9E022"] + tdf["JN9E023"]
+tdf["E_9To12"] = tdf["JN9E007"] + tdf["JN9E008"] + tdf["JN9E009"] + tdf["JN9E010"] +  tdf["JN9E024"] + tdf["JN9E025"] + tdf["JN9E026"] + tdf["JN9E027"]
+tdf["E_HSGrad"] = tdf["JN9E011"] + tdf["JN9E028"]
+tdf["E_AS"] = tdf["JN9E012"] +tdf["JN9E013"] +tdf["JN9E014"] + tdf["JN9E029"] +tdf["JN9E030"] +tdf["JN9E031"]
+tdf["E_BA"] = tdf["JN9E015"] + tdf["JN9E028"]
+tdf["E_AD"] = tdf["JN9E016"] +tdf["JN9E017"] +tdf["JN9E018"] + tdf["JN9E033"] +tdf["JN9E034"] +tdf["JN9E035"]
+tdf["TotalIncome"] = tdf["JQLE001"]
+
+dataTable = tdf[["GISJOIN", "BLKGRPA", "StateName", "StateFIPS"
+                 , "Population", "S_Male", "S_Female"
+                , "A_Under18", "A_18To24", "A_25To44", "A_45To64", "A_65AndOver"
+                , "R_White", "R_Black", "R_Asian", "R_Other"
+                , "Eth_Hispanic", "Eth_NotHispanic"
+                , "E_L9", "E_9To12", "E_HSGrad", "E_AS", "E_BA", "E_AD"
+                , "TotalIncome"
+                 ]]
+print (dataTable.head())
 
 
+print("Loading block group shapefile")
+blk_grp_geo = geopandas.read_file("input_data/NHGIS/US_2010_blk_grp_shapefile/US_blck_grp_2010.shp")
+print(blk_grp_geo.head())
+print(blk_grp_geo.crs)
 
-print (tdf.head())
+print("Merging block group data into block group shapefile")
+blk_grp_geo = blk_grp_geo.merge(dataTable, on='GISJOIN')
+print(blk_grp_geo.head())
 
+print("Loading congressional district shapefile")
+cd_geo = geopandas.read_file("input_data/CongressionalDistricts/cd116/tl_2018_us_cd116.shp")
 
-#print("Loading shapefile")
-#gdf = geopandas.read_file("input_data/NHGIS/US_2010_blk_grp_shapefile/US_blck_grp_2010.shp")
-#print(gdf.head())
+cd_geo["StateFIPS"] = cd_geo["STATEFP"]
+cd_geo["CongressionalDistrict"] = cd_geo["CD116FP"]
+print(cd_geo.head())
+print(cd_geo.crs)
 
-#print("Merging")
-#df = gdf.merge(tdf, on='GISJOIN')
-#rint(gdf.head())
+print("Re-projecting block groups to match coordinate system of districts")
+blk_grp_geo = blk_grp_geo.to_crs(cd_geo.crs)
+print (blk_grp_geo.crs)
 
-#print("Writing merged shapefile")
-#gdf.to_file("output_data/US_2010_blk_grp_merged/US_2010_blk_grp.shp")
+print("Intersecting block groups with districts")
+blk_grps_with_cd = geopandas.sjoin(blk_grp_geo, cd_geo, how="inner", op="intersects")
+print(blk_grps_with_cd.head())
+
+print("dissolving block groups to districts")
+cds_with_data_geo = blk_grps_with_cd.dissolve(by=["STATEFP10","CongressionalDistrict"], as_index=False, aggfunc='sum')
+
+print("Writing merged/dissolved shapefile")
+cds_with_data_geo.to_file("output_data/US_2010_districts/US_2010_districts.shp")
