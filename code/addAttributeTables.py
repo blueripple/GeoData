@@ -55,6 +55,16 @@ print(blk_grp_geo.head())
 print("Loading congressional district shapefile")
 cd_geo = geopandas.read_file("input_data/CongressionalDistricts/cd116/tl_2018_us_cd116.shp")
 print(cd_geo.head())
+print("Removing ZZ entries from district geoData")
+cd_geo = cd_geo[(cd_geo.CD116FP != "ZZ")]
+
+print ("Adding areas to districts")
+print ("Re-projecting to CEA")
+cd_geo = cd_geo.to_crs({'proj':'cea'})
+print ("Computing areas")
+sq_meters_per_sq_mile = 1609.34 * 1609.34
+cd_geo["SqMiles"] = cd_geo['geometry'].area/ sq_meters_per_sq_mile
+
 
 crs = "EPSG:3857"
 print("Projecting block groups to ", crs)
@@ -65,7 +75,7 @@ cd_geo = cd_geo.to_crs(crs)
 print("Aggregating block group data into districts (via areal interpolation)")
 cd_interp = tobler.area_weighted.area_interpolate(blk_grp_geo, cd_geo, extensive_variables=dataCols + ["TotalIncome"], n_jobs=-1)
 cd_interp["PerCapitaIncome"] = cd_interp["TotalIncome"] / cd_interp["Population"]
-cd_interp_rekeyed = pandas.concat([cd_geo[['STATEFP','CD116FP']], cd_interp],axis=1) # put the keys back ??
+cd_interp_rekeyed = pandas.concat([cd_geo[['STATEFP','CD116FP','SqMiles']], cd_interp],axis=1) # put the keys + areas back
 print(cd_interp_rekeyed.head())
 
 #blk_grps_with_cd = geopandas.sjoin(blk_grp_geo, cd_geo, how="inner", op="intersects")
@@ -81,8 +91,25 @@ print(cd_interp_rekeyed.head())
 #
 #]]
 ##print (blk_grp_data.head())
+cd_interp_rekeyed = cd_interp_rekeyed.rename(columns={"STATEFP": "StateFIPS", "CD116FP": "CongressionalDistrict"})
 
-cd_interp_rekeyed[['STATEFP','CD116FP'] + dataCols + ["PerCapitaIncome"]].to_csv("output_data/US_2010_bg_cd116/cd116.csv", index=False, float_format="%.0f")
+print ("Computing average densities")
+cd_interp_rekeyed["PopPerSqMile"] = cd_interp_rekeyed["Population"]/cd_interp_rekeyed["SqMiles"]
+
+def format_float(value):
+    if (value > 100):
+        return f'{value: ,.0f}'
+    elif (value > 10):
+        return f'{value: ,.1f}'
+    return f'{value: ,.0f}'
+
+#float_cols = cd_interp_rekeyed.select_dtypes(float).columns
+#formatDict = {}
+#for key in float_cols:
+#    formatDict[key] = format_float
+#cd_interp_rekeyed = cd_interp_rekeyed.style.format(formatDict)
+
+cd_interp_rekeyed[['StateFIPS','CongressionalDistrict'] + dataCols + ["SqMiles", "PopPerSqMile", "PerCapitaIncome"]].to_csv("output_data/US_2010_bg_cd116/cd116.csv", index=False, float_format="%.1f")
 
 #print("dissolving block groups to districts")
 #cds_with_data_geo = blk_grps_with_cd.dissolve(by=["GEOID"], as_index=False, aggfunc='sum')
