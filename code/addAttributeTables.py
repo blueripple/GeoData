@@ -37,17 +37,9 @@ dataCols = ["Population", "S_Male", "S_Female"
             , "R_White", "R_Black", "R_Asian", "R_Other"
             , "Eth_Hispanic", "Eth_NotHispanic"
             , "E_L9", "E_9To12", "E_HSGrad", "E_AS", "E_BA", "E_AD"
-            , "TotalIncome"
             ]
 
-dataTable = tdf[["GISJOIN", "BLKGRPA", "StateName", "StateFIPS"
-                 , "Population", "S_Male", "S_Female"
-                , "A_Under18", "A_18To24", "A_25To44", "A_45To64", "A_65AndOver"
-                , "R_White", "R_Black", "R_Asian", "R_Other"
-                , "Eth_Hispanic", "Eth_NotHispanic"
-                , "E_L9", "E_9To12", "E_HSGrad", "E_AS", "E_BA", "E_AD"
-                , "TotalIncome"
-                 ]]
+dataTable = tdf[["GISJOIN"] + dataCols + ["TotalIncome"]]
 print (dataTable.head())
 
 
@@ -62,19 +54,19 @@ print(blk_grp_geo.head())
 
 print("Loading congressional district shapefile")
 cd_geo = geopandas.read_file("input_data/CongressionalDistricts/cd116/tl_2018_us_cd116.shp")
-
-cd_geo["StateFIPS"] = cd_geo["STATEFP"]
-cd_geo["CongressionalDistrict"] = cd_geo["CD116FP"]
 print(cd_geo.head())
-print(cd_geo.crs)
 
-print("Re-projecting block groups to match coordinate system of districts")
-blk_grp_geo = blk_grp_geo.to_crs(cd_geo.crs)
-print (blk_grp_geo.crs)
+crs = "EPSG:3857"
+print("Projecting block groups to ", crs)
+blk_grp_geo = blk_grp_geo.to_crs(crs)
+print("Projecting districts to ",crs)
+cd_geo = cd_geo.to_crs(crs)
 
-print("Intersecting block groups with districts using areal interpolation")
-blk_grps_interp = tobler.area_weighted.area_interpolate(blk_grp_geo, cd_geo, extensive_variables=dataCols)
-print(blk_grps_interp.head())
+print("Aggregating block group data into districts (via areal interpolation)")
+cd_interp = tobler.area_weighted.area_interpolate(blk_grp_geo, cd_geo, extensive_variables=dataCols + ["TotalIncome"], n_jobs=-1)
+cd_interp["PerCapitaIncome"] = cd_interp["TotalIncome"] / cd_interp["Population"]
+cd_interp_rekeyed = pandas.concat([cd_geo[['STATEFP','CD116FP']], cd_interp],axis=1) # put the keys back ??
+print(cd_interp_rekeyed.head())
 
 #blk_grps_with_cd = geopandas.sjoin(blk_grp_geo, cd_geo, how="inner", op="intersects")
 #print(blk_grps_with_cd.head())
@@ -89,7 +81,8 @@ print(blk_grps_interp.head())
 #
 #]]
 ##print (blk_grp_data.head())
-blk_grp_interp[['StateFP','CD116FP'] + dataCols].to_csv("output_data/US_2010_blk_grps_merged/US_2010_blk_grps.csv")
+
+cd_interp_rekeyed[['STATEFP','CD116FP'] + dataCols + ["PerCapitaIncome"]].to_csv("output_data/US_2010_bg_cd116/cd116.csv", index=False, float_format="%.0f")
 
 #print("dissolving block groups to districts")
 #cds_with_data_geo = blk_grps_with_cd.dissolve(by=["GEOID"], as_index=False, aggfunc='sum')
