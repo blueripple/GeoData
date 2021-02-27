@@ -34,9 +34,9 @@ nlcd = "nlcd_2011.tif"
 #nlcd = "nlcd_2011.tif"
 
 #2012
-#dataCSVs = ["input_data/NHGIS/US_2014_tract_csv/nhgis0018_ds192_20125_2012_tract_E.csv"]
+#dataCSVs = ["input_data/NHGIS/US_2012_tract_csv/nhgis0018_ds192_20125_2012_tract_E.csv"]
 #dataShapes = "input_data/NHGIS/US_2012_tract_shapefile/US_tract_2012.shp"
-#aggregateToShape = "input_data/CongressionalDistricts/cd113/tl_2012_us_cd113.shp"
+#aggregateToShape = "input_data/CongressionalDistricts/cd113/tl_2013_us_cd113.shp" # this is weird, the 2013 bit
 #outCSV = "output_data/US_2012_cd113/cd113Raw.csv"
 #cdCol = 'CD113FP'
 #nlcd = "nlcd_2011.tif"
@@ -103,7 +103,7 @@ def reProjectBoth(df_dat, df_agg, crs='EPSG:3857'):
     return df_dat, df_agg
 
 def aggregate_simple(df_dat, df_agg, dataCols, districtFIPSCol, stateFIPSCol='STATEFP', nJobs=-1):
-    crs = "EPSG:3857"
+    crs = 'EPSG:3857'
     df_dat, df_agg = reProjectBoth(df_dat, df_agg, crs)
     print("Aggregating small areas (via areal interpolation)")
     df_interp = tobler.area_weighted.area_interpolate(df_dat, df_agg, extensive_variables=dataCols, n_jobs=nJobs)
@@ -125,6 +125,8 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
     p = Package.browse("rasters/nlcd", "s3://spatial-ucr")
     p[nlcd].fetch()
     print("Aggregating small areas (via dasymetric areal interpolation using NLCD raster data)")
+    df_dat.geometry = df_dat.buffer(0)
+    df_agg.geometry = df_agg.buffer(0)
     df_interp = tobler.dasymetric.masked_area_interpolate(raster=nlcd
                                                           , source_df=df_dat
                                                           , target_df=df_agg
@@ -143,8 +145,8 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
 
 df_tracts, tract_dataCols = loadShapesAndData(dataCSVs, dataShapes)
 df_cds = loadAggregateToShapes(aggregateToShape)
-df_aggregated = aggregate_dasymmetric(nlcd, df_tracts, df_cds, tract_dataCols, cdCol)
-
+df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, cdCol)
+#df_aggregated = aggregate_dasymmetric(nlcd, df_tracts, df_cds, tract_dataCols, cdCol)
 outCols = ['StateFIPS','CongressionalDistrict','SqMiles','SqKm'] + tract_dataCols
 
 print ("Writing ", outCSV)
