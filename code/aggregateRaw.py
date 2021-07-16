@@ -10,14 +10,17 @@ geopandas.options.use_pygeos = True
 # Comes in 2 sets so code below can merge those
 
 # 2018
-#dataCSVs = ["input_data/NHGIS/US_2018_tract_csv/nhgis0016_ds240_20185_2018_tract_E.csv"
-#            , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
-#dataShapes = "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"
+dataCSVs = ["input_data/NHGIS/US_2018_tract_csv/nhgis0016_ds240_20185_2018_tract_E.csv"
+           , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
+dataShapes = "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"
 #aggregateToShape = "input_data/CongressionalDistricts/cd116/tl_2018_us_cd116.shp"
-#outCSV = "output_data/US_2018_cd116/cd116Raw.csv"
-#cdCol = 'CD116FP'
-#totalPopCol = 'AJWME001'
-#pcIncomeCol = 'AJ0EE001'
+aggregateToShape = "input_data/StateLegDistricts/tl_2020_51_sldl20/tl_2020_51_sldl20.shp"
+#aggToCol = 'CD116FP'
+aggToCol = 'SLDLST20'
+outCSV = "output_data/VA_2018_sldl/va_sldl_Raw.csv"
+
+totalPopCol = 'AJWME001'
+pcIncomeCol = 'AJ0EE001'
 #nlcd = "nlcd_2011.tif"
 
 #2016
@@ -26,7 +29,7 @@ geopandas.options.use_pygeos = True
 #dataShapes = "input_data/NHGIS/US_2016_tract_shapefile/US_tract_2016.shp"
 #aggregateToShape = "input_data/CongressionalDistricts/cd115/tl_2016_us_cd115.shp"
 #outCSV = "output_data/US_2016_cd115/cd115Raw.csv"
-#cdCol = 'CD115FP'
+#aggToCol = 'CD115FP'
 #totalPopCol = 'AF2LE001'
 #pcIncomeCol = 'AF6AE001'
 #nlcd = "nlcd_2016.tif"
@@ -37,20 +40,20 @@ geopandas.options.use_pygeos = True
 #dataShapes = "input_data/NHGIS/US_2014_tract_shapefile/US_tract_2014.shp"
 #aggregateToShape = "input_data/CongressionalDistricts/cd114/tl_2014_us_cd114.shp"
 #outCSV = "output_data/US_2014_cd114/cd114Raw.csv"
-#cdCol = 'CD114FP'
+#aggToCol = 'CD114FP'
 #totalPopCol = 'ABA1E001'
 #pcIncomeCol = 'ABFIE001'
 #nlcd = "nlcd_2011.tif"
 
 #2012
-dataCSVs = ["input_data/NHGIS/US_2012_tract_csv/nhgis0018_ds192_20125_2012_tract_E.csv"
-           , "input_data/NHGIS/US_2012_tract_csv/nhgis0026_ds191_20125_2012_tract_E.csv"]
-dataShapes = "input_data/NHGIS/US_2012_tract_shapefile/US_tract_2012.shp"
-aggregateToShape = "input_data/CongressionalDistricts/cd113/tl_2013_us_cd113.shp" # this is weird, the 2013 bit
-outCSV = "output_data/US_2012_cd113/cd113Raw.csv"
-cdCol = 'CD113FP'
-totalPopCol = 'QSPE001'
-pcIncomeCol = 'QWUE001'
+#dataCSVs = ["input_data/NHGIS/US_2012_tract_csv/nhgis0018_ds192_20125_2012_tract_E.csv"
+#            , "input_data/NHGIS/US_2012_tract_csv/nhgis0026_ds191_20125_2012_tract_E.csv"]
+#dataShapes = "input_data/NHGIS/US_2012_tract_shapefile/US_tract_2012.shp"
+#aggregateToShape = "input_data/CongressionalDistricts/cd113/tl_2013_us_cd113.shp" # this is weird, the 2013 bit
+#outCSV = "output_data/US_2012_cd113/cd113Raw.csv"
+#aggToCol = 'CD113FP'
+#totalPopCol = 'QSPE001'
+#pcIncomeCol = 'QWUE001'
 #nlcd = "nlcd_2011.tif"
 
 extraIntCols =['TotalPopulation']
@@ -162,7 +165,7 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
     df_interp = pandas.concat([df_agg[[stateFIPSCol, districtFIPSCol] + ['SqMiles','SqKm']], df_interp],axis=1) # put the keys + areas back
     print("Removing ZZ entries")
     df_interp = df_interp[(df_interp[districtFIPSCol] != "ZZ")]
-    df_interp = df_interp.rename(columns={stateFIPSCol: "StateFIPS", districtFIPSCol: "CongressionalDistrict"})
+    df_interp = df_interp.rename(columns={stateFIPSCol: "StateFIPS", districtFIPSCol: "District"})
     df_interp["PerCapitaIncome"] = df_interp["TotalIncome"]/df_interp["TotalPopulation"]
     df_interp["PopPerSqMile"] = df_interp["TotalPopulation"]/df_interp["SqMiles"]
     sqKm_per_sqMi = 2.58999
@@ -177,8 +180,8 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
 
 df_tracts, tract_dataCols = loadShapesAndData(dataCSVs, dataShapes, totalPopCol, pcIncomeCol)
 df_cds = loadAggregateToShapes(aggregateToShape)
-df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, cdCol)
-#df_aggregated = aggregate_dasymmetric(nlcd, df_tracts, df_cds, tract_dataCols, cdCol)
+df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggToCol, 'STATEFP20')
+#df_aggregated = aggregate_dasymmetric(nlcd, df_tracts, df_cds, tract_dataCols, aggToCol)
 
 outCols = ['StateFIPS','CongressionalDistrict'] + extraIntCols + extraFloatCols + tract_dataCols
 
