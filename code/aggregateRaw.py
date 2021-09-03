@@ -5,6 +5,28 @@ import re
 #from quilt3 import Package
 geopandas.options.use_pygeos = True
 
+
+class AggregateTo:
+    """Container For Fields required to Aggregate ACS block-group data geographically"""
+    def __init__(self, state, districtType, aggToShpFile, aggToCol, distCol):
+        self.state = state
+        self.districtType = districtType
+        self.aggToShpFile = aggToShpFile
+        self.aggToCol = aggToCol
+        self.distCol = distCol
+
+class ACSData:
+    """Container for specifics of ACS shapes and data for aggregation"""
+    def __init__(self, dataCSVs, dataShapes, totalPopCol, pcIncomeCol):
+        self.dataCSVs = dataCSVs
+        self.dataShapes = dataShapes
+        self.totalPopCol = totalPopCol
+        self.pcIncomeCol = pcIncomeCol
+
+acs2018 = ACSData(["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
+                   , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
+                  , "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp")
+
 # Some notes
 # 5-year ACS has much at the tract level
 # Comes in 2 sets so code below can merge those
@@ -13,12 +35,18 @@ geopandas.options.use_pygeos = True
 dataCSVs = ["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
            , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
 dataShapes = "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"
-aggregateToShape = "input_data/StateLegDistricts/tl_2020_51_sldl20/tl_2017_51_sldl.shp"
+
+
+
+aggregateToShape = "input_data/StateLegDistricts/VA/tl_2020_51_sldl20/tl_2017_51_sldl.shp"
 aggToCol = 'SLDLST'
 distCol = 'DistrictNumber'
 outCSV = "output_data/VA_2018_sldl/va_sldl_Raw.csv"
 totalPopCol = 'AJWME001'
 pcIncomeCol = 'AJ0EE001'
+
+#VA Upper
+
 
 '''2018
 dataCSVs = ["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
