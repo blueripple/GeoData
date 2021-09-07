@@ -5,16 +5,6 @@ import re
 #from quilt3 import Package
 geopandas.options.use_pygeos = True
 
-
-class AggregateTo:
-    """Container For Fields required to Aggregate ACS block-group data geographically"""
-    def __init__(self, state, districtType, aggToShpFile, aggToCol, distCol):
-        self.state = state
-        self.districtType = districtType
-        self.aggToShpFile = aggToShpFile
-        self.aggToCol = aggToCol
-        self.distCol = distCol
-
 class ACSData:
     """Container for specifics of ACS shapes and data for aggregation"""
     def __init__(self, dataCSVs, dataShapes, totalPopCol, pcIncomeCol):
@@ -27,23 +17,50 @@ acs2018 = ACSData(["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_201
                    , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
                   , "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp")
 
+#dataCSVs = ["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
+#           , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
+#dataShapes = "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"
+
+
 # Some notes
 # 5-year ACS has much at the tract level
 # Comes in 2 sets so code below can merge those
 
+class AggregateTo:
+    """Container For Fields required to Aggregate ACS block-group data geographically"""
+    def __init__(self, stateFPCol, districtType, aggToShpFile, aggToCol, distCol, outCSV):
+        self.stateFPCol = stateFPCol
+        self.districtType = districtType
+        self.aggToShpFile = aggToShpFile
+        self.aggToCol = aggToCol
+        self.distCol = distCol
+        self.outCSV = outCSV
+
 # VA Lower
-dataCSVs = ["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
-           , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
-dataShapes = "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"
 
 
+vaLower = AggregateTo("STATEFP"
+                      , "StateLower"
+                      , "input_data/StateLegDistricts/VA/tl_2020_51_sldl20/tl_2017_51_sldl.shp"
+                      , 'SLDLST'
+                      , 'DistrictNumber'
+                      , "output_data/VA_2018_sldl/va_sldl_Raw.csv")
 
+cd116 = AggregateTo("STATEFP"
+                    ,"Congressional"
+                    ,"input_data/CongressionalDistricts/cd116/tl_2018_us_cd116.shp"
+                    , 'CD116FP'
+                    , 'CongressionalDistrict'
+                    , "output_data/US_2018_cd115/cd116Raw.csv")
+
+```VA Lower
 aggregateToShape = "input_data/StateLegDistricts/VA/tl_2020_51_sldl20/tl_2017_51_sldl.shp"
 aggToCol = 'SLDLST'
 distCol = 'DistrictNumber'
 outCSV = "output_data/VA_2018_sldl/va_sldl_Raw.csv"
 totalPopCol = 'AJWME001'
 pcIncomeCol = 'AJ0EE001'
+```
 
 #VA Upper
 
@@ -223,6 +240,19 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
     return df_interp
 '''
 
+def doAggregation(acsData, aggTo):
+    df_tracts, tract_dataCols = loadShapesAndData(acsData.dataCSVs, acsData.dataShapes, acsData.totalPopCol, acsData.pcIncomeCol)
+    df_cds = loadAggregateToShapes(aggTo.aggregateToShape)
+    df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggTO.aggToCol, aggTo.StateFPCol)
+    outCols = ['StateFIPS',aggTo.distCol] + extraIntCols + extraFloatCols + tract_dataCols
+    print ("Writing ", outCSV)
+    df_aggregated[outCols].to_csv(aggTo.outCSV, index=False)
+    print ("done.")
+
+
+doAggregation(acs2018, vaLower)
+
+'''old
 df_tracts, tract_dataCols = loadShapesAndData(dataCSVs, dataShapes, totalPopCol, pcIncomeCol)
 df_cds = loadAggregateToShapes(aggregateToShape)
 df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggToCol, 'STATEFP')
@@ -233,7 +263,7 @@ outCols = ['StateFIPS',distCol] + extraIntCols + extraFloatCols + tract_dataCols
 print ("Writing ", outCSV)
 df_aggregated[outCols].to_csv(outCSV, index=False)
 print ("done.")
-
+'''
 
 
 #bg_dataTable, bg_dataCols = dataAndColsForMerge("input_data/NHGIS/US_2010_blk_grp_csv/nhgis0003_ds176_20105_2010_blck_grp.csv")
