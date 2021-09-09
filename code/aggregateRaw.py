@@ -2,25 +2,50 @@ import geopandas
 import pandas
 import tobler
 import re
-#from quilt3 import Package
+#from quilt3 import Package #for nlcd
 geopandas.options.use_pygeos = True
 
 class ACSData:
     """Container for specifics of ACS shapes and data for aggregation"""
-    def __init__(self, dataCSVs, dataShapes, totalPopCol, pcIncomeCol):
+    def __init__(self, dataCSVs, dataShapes, nlcdFile, totalPopCol, pcIncomeCol):
         self.dataCSVs = dataCSVs
         self.dataShapes = dataShapes
+        self.nlcdFile = nlcdFile
         self.totalPopCol = totalPopCol
         self.pcIncomeCol = pcIncomeCol
 
 acs2018 = ACSData(["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
                    , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
-                  , "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp")
+                  , "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"
+                  , "nlcd_2016.tif"
+                  , 'AJWME001'
+                  , 'AJ0EE001'
+                  )
 
-#dataCSVs = ["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
-#           , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
-#dataShapes = "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"
+acs2016 = ACSData (["input_data/NHGIS/US_2016_tract_csv/nhgis0015_ds226_20165_2016_tract_E.csv"
+                    , "input_data/NHGIS/US_2016_tract_csv/nhgis0023_ds225_20165_2016_tract_E.csv"]
+                   , "input_data/NHGIS/US_2016_tract_shapefile/US_tract_2016.shp"
+                   , "nlcd_2016.tif"
+                   , 'AF2LE001'
+                   , 'AF6AE001'
+                   )
 
+
+acs2014 = ACSData (["input_data/NHGIS/US_2014_tract_csv/nhgis0017_ds207_20145_2014_tract_E.csv"
+                    , "input_data/NHGIS/US_2014_tract_csv/nhgis0024_ds206_20145_2014_tract_E.csv"]
+                   , "input_data/NHGIS/US_2014_tract_shapefile/US_tract_2014.shp"
+                   , "nlcd_2011.tif"
+                   , 'ABA1E001'
+                   , 'ABFIE001'
+                   )
+
+acs2012 = ACSData (["input_data/NHGIS/US_2012_tract_csv/nhgis0018_ds192_20125_2012_tract_E.csv"
+                    , "input_data/NHGIS/US_2012_tract_csv/nhgis0026_ds191_20125_2012_tract_E.csv"]
+                   , "input_data/NHGIS/US_2012_tract_shapefile/US_tract_2012.shp"
+                   ,  "nlcd_2011.tif"
+                   , 'QSPE001'
+                   , 'QWUE001'
+                   )
 
 # Some notes
 # 5-year ACS has much at the tract level
@@ -44,7 +69,31 @@ vaLower = AggregateTo("STATEFP"
                       , "input_data/StateLegDistricts/VA/tl_2020_51_sldl20/tl_2017_51_sldl.shp"
                       , 'SLDLST'
                       , 'DistrictNumber'
-                      , "output_data/VA_2018_sldl/va_sldl_Raw.csv")
+                      , "output_data/StateLegDistricts/va_2018_sldl.csv")
+
+vaUpper = AggregateTo("STATEFP20"
+                      , "StateUpper"
+                      , "input_data/StateLegDistricts/VA/tl_2020_51_sldu20/tl_2020_51_sldu20.shp"
+                      , 'SLDUST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/va_2020_sldu.csv")
+
+txLower = AggregateTo("STATEFP20"
+                      , "StateUpper"
+                      , "input_data/StateLegDistricts/TX/tl_2020_48_sldl20/tl_2020_48_sldl20.shp"
+                      , 'SLDLST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/tx_2020_sldl.csv")
+
+
+txUpper = AggregateTo("STATEFP20"
+                      , "StateUpper"
+                      , "input_data/StateLegDistricts/TX/tl_2020_48_sldu20/tl_2020_48_sldu20.shp"
+                      , 'SLDUST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/tx_2020_sldu.csv")
+
+
 
 cd116 = AggregateTo("STATEFP"
                     ,"Congressional"
@@ -53,69 +102,31 @@ cd116 = AggregateTo("STATEFP"
                     , 'CongressionalDistrict'
                     , "output_data/US_2018_cd115/cd116Raw.csv")
 
-```VA Lower
-aggregateToShape = "input_data/StateLegDistricts/VA/tl_2020_51_sldl20/tl_2017_51_sldl.shp"
-aggToCol = 'SLDLST'
-distCol = 'DistrictNumber'
-outCSV = "output_data/VA_2018_sldl/va_sldl_Raw.csv"
-totalPopCol = 'AJWME001'
-pcIncomeCol = 'AJ0EE001'
-```
+cd115 = AggregateTo("STATEFP"
+                    ,"Congressional"
+                    ,"input_data/CongressionalDistricts/cd115/tl_2016_us_cd115.shp"
+                    , 'CD115FP'
+                    , 'CongressionalDistrict'
+                    , "output_data/US_2016_cd115/cd115Raw.csv")
 
-#VA Upper
+cd114 = AggregateTo("STATEFP"
+                    ,"Congressional"
+                    ,"input_data/CongressionalDistricts/cd114/tl_2014_us_cd114.shp"
+                    , 'CD114FP'
+                    , 'CongressionalDistrict'
+                    , "output_data/US_2014_cd114/cd114Raw.csv")
+
+cd112 = AggregateTo("STATEFP"
+                    ,"Congressional"
+                    ,"input_data/CongressionalDistricts/cd113/tl_2013_us_cd113.shp" # this is weird, the 2013 bit
+                    , 'CD113FP'
+                    , 'CongressionalDistrict'
+                    , "output_data/US_2013_cd113/cd113Raw.csv")
 
 
-'''2018
-dataCSVs = ["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
-           , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
-dataShapes = "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"
-aggregateToShape = "input_data/CongressionalDistricts/cd116/tl_2018_us_cd116.shp"
-aggToCol = 'CD116FP'
-distCol = 'CongressionalDistrict'
-outCSV = "output_data/US_2018_cd115/cd115Raw.csv"
-totalPopCol = 'AJWME001'
-pcIncomeCol = 'AJ0EE001'
-#nlcd = "nlcd_2011.tif"
-'''
 
-'''2016
-dataCSVs = ["input_data/NHGIS/US_2016_tract_csv/nhgis0015_ds226_20165_2016_tract_E.csv"
-            , "input_data/NHGIS/US_2016_tract_csv/nhgis0023_ds225_20165_2016_tract_E.csv"]
-dataShapes = "input_data/NHGIS/US_2016_tract_shapefile/US_tract_2016.shp"
-aggregateToShape = "input_data/CongressionalDistricts/cd115/tl_2016_us_cd115.shp"
-outCSV = "output_data/US_2016_cd115/cd115Raw.csv"
-aggToCol = 'CD115FP'
-distCol = 'DistrictNumber'
-totalPopCol = 'AF2LE001'
-pcIncomeCol = 'AF6AE001'
-nlcd = "nlcd_2016.tif"
-'''
 
-'''2014
-dataCSVs = ["input_data/NHGIS/US_2014_tract_csv/nhgis0017_ds207_20145_2014_tract_E.csv"
-            , "input_data/NHGIS/US_2014_tract_csv/nhgis0024_ds206_20145_2014_tract_E.csv"]
-dataShapes = "input_data/NHGIS/US_2014_tract_shapefile/US_tract_2014.shp"
-aggregateToShape = "input_data/CongressionalDistricts/cd114/tl_2014_us_cd114.shp"
-outCSV = "output_data/US_2014_cd114/cd114Raw.csv"
-aggToCol = 'CD114FP'
-distCol = 'DistrictNumber'
-totalPopCol = 'ABA1E001'
-pcIncomeCol = 'ABFIE001'
-nlcd = "nlcd_2011.tif"
-'''
 
-'''2012
-dataCSVs = ["input_data/NHGIS/US_2012_tract_csv/nhgis0018_ds192_20125_2012_tract_E.csv"
-            , "input_data/NHGIS/US_2012_tract_csv/nhgis0026_ds191_20125_2012_tract_E.csv"]
-dataShapes = "input_data/NHGIS/US_2012_tract_shapefile/US_tract_2012.shp"
-aggregateToShape = "input_data/CongressionalDistricts/cd113/tl_2013_us_cd113.shp" # this is weird, the 2013 bit
-outCSV = "output_data/US_2012_cd113/cd113Raw.csv"
-aggToCol = 'CD113FP'
-distCol = 'DistrictNumber'
-totalPopCol = 'QSPE001'
-pcIncomeCol = 'QWUE001'
-nlcd = "nlcd_2011.tif"
-'''
 
 extraIntCols =['TotalPopulation']
 extraFloatCols = ['PerCapitaIncome','SqKm','SqMiles','PopPerSqMile','pwPopPerSqMile','SqKmPop']
@@ -187,7 +198,7 @@ def reProjectBoth(df_dat, df_agg, crs='EPSG:3857'):
     df_agg = df_agg.to_crs(crs)
     return df_dat, df_agg
 
-def aggregate_simple(df_dat, df_agg, dataCols, districtFIPSCol, stateFIPSCol='STATEFP', nJobs=-1):
+def aggregate_simple(df_dat, df_agg, dataCols, districtFIPSInCol, districtFIPSOutCol, stateFIPSCol='STATEFP', nJobs=-1):
     crs = 'EPSG:3857'
     df_dat, df_agg = reProjectBoth(df_dat, df_agg, crs)
     print("Aggregating small areas (via areal interpolation)")
@@ -195,10 +206,10 @@ def aggregate_simple(df_dat, df_agg, dataCols, districtFIPSCol, stateFIPSCol='ST
                                                       , df_agg
                                                       , extensive_variables=(['TotalPopulation', 'TotalIncome','SqKmPop'] + dataCols)
                                                       , n_jobs=nJobs)
-    df_interp = pandas.concat([df_agg[[stateFIPSCol, districtFIPSCol] + ['SqMiles','SqKm']], df_interp],axis=1) # put the keys + areas back
+    df_interp = pandas.concat([df_agg[[stateFIPSCol, districtFIPSInCol] + ['SqMiles','SqKm']], df_interp],axis=1) # put the keys + areas back
     print("Removing ZZ entries")
-    df_interp = df_interp[(df_interp[districtFIPSCol] != "ZZ")]
-    df_interp = df_interp.rename(columns={stateFIPSCol: "StateFIPS", districtFIPSCol: distCol})
+    df_interp = df_interp[(df_interp[districtFIPSInCol] != "ZZ")]
+    df_interp = df_interp.rename(columns={stateFIPSCol: "StateFIPS", districtFIPSInCol: districtFIPSOutCol})
     df_interp["PerCapitaIncome"] = df_interp["TotalIncome"]/df_interp["TotalPopulation"]
     df_interp["PopPerSqMile"] = df_interp["TotalPopulation"]/df_interp["SqMiles"]
     sqKm_per_sqMi = 2.58999
@@ -242,15 +253,17 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
 
 def doAggregation(acsData, aggTo):
     df_tracts, tract_dataCols = loadShapesAndData(acsData.dataCSVs, acsData.dataShapes, acsData.totalPopCol, acsData.pcIncomeCol)
-    df_cds = loadAggregateToShapes(aggTo.aggregateToShape)
-    df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggTO.aggToCol, aggTo.StateFPCol)
+    df_cds = loadAggregateToShapes(aggTo.aggToShpFile)
+    df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggTo.aggToCol, aggTo.distCol, aggTo.stateFPCol)
     outCols = ['StateFIPS',aggTo.distCol] + extraIntCols + extraFloatCols + tract_dataCols
-    print ("Writing ", outCSV)
-    df_aggregated[outCols].to_csv(aggTo.outCSV, index=False)
+    print ("Writing ", aggTo.outCSV)
+    toWrite = df_aggregated[outCols]
+    toWrite.insert(1,'DistrictType',aggTo.districtType)
+    toWrite.to_csv(aggTo.outCSV, index=False)
     print ("done.")
 
 
-doAggregation(acs2018, vaLower)
+doAggregation(acs2018, txLower)
 
 '''old
 df_tracts, tract_dataCols = loadShapesAndData(dataCSVs, dataShapes, totalPopCol, pcIncomeCol)
