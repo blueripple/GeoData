@@ -79,7 +79,7 @@ vaUpper = AggregateTo("STATEFP20"
                       , "output_data/StateLegDistricts/va_2020_sldu.csv")
 
 txLower = AggregateTo("STATEFP20"
-                      , "StateUpper"
+                      , "StateLower"
                       , "input_data/StateLegDistricts/TX/tl_2020_48_sldl20/tl_2020_48_sldl20.shp"
                       , 'SLDLST20'
                       , 'DistrictNumber'
@@ -264,30 +264,3 @@ def doAggregation(acsData, aggTo):
 
 
 doAggregation(acs2018, txLower)
-
-'''old
-df_tracts, tract_dataCols = loadShapesAndData(dataCSVs, dataShapes, totalPopCol, pcIncomeCol)
-df_cds = loadAggregateToShapes(aggregateToShape)
-df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggToCol, 'STATEFP')
-#df_aggregated = aggregate_dasymmetric(nlcd, df_tracts, df_cds, tract_dataCols, aggToCol)
-
-outCols = ['StateFIPS',distCol] + extraIntCols + extraFloatCols + tract_dataCols
-
-print ("Writing ", outCSV)
-df_aggregated[outCols].to_csv(outCSV, index=False)
-print ("done.")
-'''
-
-
-#bg_dataTable, bg_dataCols = dataAndColsForMerge("input_data/NHGIS/US_2010_blk_grp_csv/nhgis0003_ds176_20105_2010_blck_grp.csv")
-#print (bg_dataTable.head())
-
-
-#print("Loading block group shapefile")
-#blk_grp_geo = geopandas.read_file("input_data/NHGIS/US_2010_blk_grp_shapefile/US_blck_grp_2010.shp")
-#print(blk_grp_geo.head())
-#print(blk_grp_geo.crs)
-
-#print("Merging block group data into block group shapefile")
-#blk_grp_geo = blk_grp_geo.merge(bg_dataTable, on='GISJOIN')
-#print(blk_grp_geo.head())
