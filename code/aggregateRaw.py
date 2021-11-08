@@ -50,19 +50,23 @@ acs2012 = ACSData (["input_data/NHGIS/US_2012_tract_csv/nhgis0018_ds192_20125_20
 # Some notes
 # 5-year ACS has much at the tract level
 # Comes in 2 sets so code below can merge those
-
 class AggregateTo:
     """Container For Fields required to Aggregate ACS block-group data geographically"""
-    def __init__(self, stateFPCol, districtType, aggToShpFile, aggToCol, distCol, outCSV):
-        self.stateFPCol = stateFPCol
+    def __init__(self, stateFP, districtType, aggToShpFile, aggToCol, distCol, outCSV):
+        self.stateFP = stateFP # col name for state FIPS or integer value of state FIPS for a single state input
         self.districtType = districtType
         self.aggToShpFile = aggToShpFile
-        self.aggToCol = aggToCol
-        self.distCol = distCol
+        self.aggToCol = aggToCol # Column Name for the district number ?
+        self.distCol = distCol #output column name for district number ?
         self.outCSV = outCSV
 
-# VA Lower
 
+ncProposed = AggregateTo(37
+                         ,"Congressional"
+                         ,"input_data/CongressionalDistricts/cd117-proposed/NC-SBK-7_2ed.geojson"
+                         ,"DISTRICT"
+                         ,"DistrictNumber"
+                         ,"output_data/US_2020_cd117P/cd117_NC.csv")
 
 vaLower = AggregateTo("STATEFP"
                       , "StateLower"
@@ -92,6 +96,70 @@ txUpper = AggregateTo("STATEFP20"
                       , 'SLDUST20'
                       , 'DistrictNumber'
                       , "output_data/StateLegDistricts/tx_2020_sldu.csv")
+
+
+gaLower = AggregateTo("STATEFP20"
+                      , "StateLower"
+                      , "input_data/StateLegDistricts/GA/tl_2020_13_sldl20/tl_2020_13_sldl20.shp"
+                      , 'SLDLST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/ga_2020_sldl.csv")
+
+
+gaUpper = AggregateTo("STATEFP20"
+                      , "StateUpper"
+                      , "input_data/StateLegDistricts/GA/tl_2020_13_sldu20/tl_2020_13_sldu20.shp"
+                      , 'SLDUST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/ga_2020_sldu.csv")
+
+azLower = AggregateTo("STATEFP20"
+                      , "StateLower"
+                      , "input_data/StateLegDistricts/AZ/tl_2020_04_sldl20/tl_2020_04_sldl20.shp"
+                      , 'SLDLST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/az_2020_sldl.csv")
+
+
+azUpper = AggregateTo("STATEFP20"
+                      , "StateUpper"
+                      , "input_data/StateLegDistricts/AZ/tl_2020_04_sldu20/tl_2020_04_sldu20.shp"
+                      , 'SLDUST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/az_2020_sldu.csv")
+
+
+nvLower = AggregateTo("STATEFP20"
+                      , "StateLower"
+                      , "input_data/StateLegDistricts/NV/tl_2020_32_sldl20/tl_2020_32_sldl20.shp"
+                      , 'SLDLST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/nv_2020_sldl.csv")
+
+
+nvUpper = AggregateTo("STATEFP20"
+                      , "StateUpper"
+                      , "input_data/StateLegDistricts/NV/tl_2020_32_sldu20/tl_2020_32_sldu20.shp"
+                      , 'SLDUST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/nv_2020_sldu.csv")
+
+
+ohLower = AggregateTo("STATEFP20"
+                      , "StateLower"
+                      , "input_data/StateLegDistricts/OH/tl_2020_39_sldl20/tl_2020_39_sldl20.shp"
+                      , 'SLDLST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/oh_2020_sldl.csv")
+
+
+ohUpper = AggregateTo("STATEFP20"
+                      , "StateUpper"
+                      , "input_data/StateLegDistricts/OH/tl_2020_39_sldu20/tl_2020_39_sldu20.shp"
+                      , 'SLDUST20'
+                      , 'DistrictNumber'
+                      , "output_data/StateLegDistricts/oh_2020_sldu.csv")
+
 
 
 
@@ -173,9 +241,12 @@ def loadShapesAndData(dataFPS, shapeFP, popC, pcIncomeC, joinCol='GISJOIN'):
     df_geo["SqKmPop"] = df_geo["TotalPopulation"] * df_geo['geometry'].area / sq_meters_per_sq_km
     return df_geo, dataCols
 
-def loadAggregateToShapes(fp):
+def loadAggregateToShapes(fp, stateFIPS):
     print("Loading aggregate-to shapefile")
     agg_geo = geopandas.read_file(fp)
+    if type(stateFIPS) is int:
+        print ("Manually adding state FIPS column to input shapes")
+        agg_geo["STATEFP"] = stateFIPS
     print ("Adding areas, after projecting to CEA")
     agg_geo = agg_geo.to_crs({'proj':'cea'})
     print ("Computing areas")
@@ -183,6 +254,7 @@ def loadAggregateToShapes(fp):
     sq_meters_per_sq_km = 1e6
     agg_geo["SqMiles"] = agg_geo['geometry'].area / sq_meters_per_sq_mile
     agg_geo["SqKm"] = agg_geo['geometry'].area / sq_meters_per_sq_km
+    print(agg_geo.head())
     return agg_geo
 
 def reformat(x):
@@ -253,8 +325,13 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
 
 def doAggregation(acsData, aggTo):
     df_tracts, tract_dataCols = loadShapesAndData(acsData.dataCSVs, acsData.dataShapes, acsData.totalPopCol, acsData.pcIncomeCol)
-    df_cds = loadAggregateToShapes(aggTo.aggToShpFile)
-    df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggTo.aggToCol, aggTo.distCol, aggTo.stateFPCol)
+    df_cds = loadAggregateToShapes(aggTo.aggToShpFile,aggTo.stateFP)
+    if type(aggTo.stateFP) is int:
+        stateFPCol = "STATEFP"
+    else:
+        stateFPCol = aggTo.stateFP
+
+    df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggTo.aggToCol, aggTo.distCol, stateFPCol)
     outCols = ['StateFIPS',aggTo.distCol] + extraIntCols + extraFloatCols + tract_dataCols
     print ("Writing ", aggTo.outCSV)
     toWrite = df_aggregated[outCols]
@@ -263,4 +340,4 @@ def doAggregation(acsData, aggTo):
     print ("done.")
 
 
-doAggregation(acs2018, txLower)
+doAggregation(acs2018, ncProposed)
