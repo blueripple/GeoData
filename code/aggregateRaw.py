@@ -2,6 +2,7 @@ import geopandas
 import pandas
 import tobler
 import re
+import numpy
 #from quilt3 import Package #for nlcd
 geopandas.options.use_pygeos = True
 
@@ -22,7 +23,7 @@ acs2018 = ACSData(["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_201
                   , 'AJ0EE001'
                   )
 
-acs2016 = ACSData (["input_data/NHGIS/US_2016_tract_csv/nhgis0015_ds226_20165_2016_tract_E.csv"
+acs2016 = ACSData (["input_data/NHGIS/US_2016_tract_csv/nhgis0028_ds226_20165_2016_tract_E.csv"
                     , "input_data/NHGIS/US_2016_tract_csv/nhgis0023_ds225_20165_2016_tract_E.csv"]
                    , "input_data/NHGIS/US_2016_tract_shapefile/US_tract_2016.shp"
                    , "nlcd_2016.tif"
@@ -31,7 +32,7 @@ acs2016 = ACSData (["input_data/NHGIS/US_2016_tract_csv/nhgis0015_ds226_20165_20
                    )
 
 
-acs2014 = ACSData (["input_data/NHGIS/US_2014_tract_csv/nhgis0017_ds207_20145_2014_tract_E.csv"
+acs2014 = ACSData (["input_data/NHGIS/US_2014_tract_csv/nhgis0029_ds207_20145_2014_tract_E.csv"
                     , "input_data/NHGIS/US_2014_tract_csv/nhgis0024_ds206_20145_2014_tract_E.csv"]
                    , "input_data/NHGIS/US_2014_tract_shapefile/US_tract_2014.shp"
                    , "nlcd_2011.tif"
@@ -39,7 +40,7 @@ acs2014 = ACSData (["input_data/NHGIS/US_2014_tract_csv/nhgis0017_ds207_20145_20
                    , 'ABFIE001'
                    )
 
-acs2012 = ACSData (["input_data/NHGIS/US_2012_tract_csv/nhgis0018_ds192_20125_2012_tract_E.csv"
+acs2012 = ACSData (["input_data/NHGIS/US_2012_tract_csv/nhgis0030_ds192_20125_2012_tract_E.csv"
                     , "input_data/NHGIS/US_2012_tract_csv/nhgis0026_ds191_20125_2012_tract_E.csv"]
                    , "input_data/NHGIS/US_2012_tract_shapefile/US_tract_2012.shp"
                    ,  "nlcd_2011.tif"
@@ -63,8 +64,8 @@ class AggregateTo:
 
 ncProposed = AggregateTo(37
                          ,"Congressional"
-                         ,"input_data/CongressionalDistricts/cd117-proposed/NC-SBK-7_2ed.geojson"
-                         ,"DISTRICT"
+                         ,"input_data/CongressionalDistricts/cd117-proposed/NC-CST-13.geojson"
+                         ,"NAME"
                          ,"DistrictNumber"
                          ,"output_data/US_2020_cd117P/cd117_NC.csv")
 
@@ -160,36 +161,47 @@ ohUpper = AggregateTo("STATEFP20"
                       , 'DistrictNumber'
                       , "output_data/StateLegDistricts/oh_2020_sldu.csv")
 
+cd116NC = AggregateTo(37
+                      ,"Congressional"
+                      ,"input_data/CongressionalDistricts/DRA-cd116/NC.geojson"
+                      , 'NAME'
+                      , 'DistrictNumber'
+                      , "output_data/US_2018_cd116/NC_DRA.csv")
 
-
+cd116GA = AggregateTo(37
+                      ,"Congressional"
+                      ,"input_data/CongressionalDistricts/DRA-cd116/GA.geojson"
+                      , 'NAME'
+                      , 'DistrictNumber'
+                      , "output_data/US_2018_cd116/GA_DRA.csv")
 
 cd116 = AggregateTo("STATEFP"
                     ,"Congressional"
                     ,"input_data/CongressionalDistricts/cd116/tl_2018_us_cd116.shp"
                     , 'CD116FP'
-                    , 'CongressionalDistrict'
-                    , "output_data/US_2018_cd115/cd116Raw.csv")
+                    , 'DistrictNumber'
+                    , "output_data/US_2018_cd116/cd116Raw.csv")
 
 cd115 = AggregateTo("STATEFP"
                     ,"Congressional"
                     ,"input_data/CongressionalDistricts/cd115/tl_2016_us_cd115.shp"
                     , 'CD115FP'
-                    , 'CongressionalDistrict'
+                    , 'DistrictNumber'
                     , "output_data/US_2016_cd115/cd115Raw.csv")
 
 cd114 = AggregateTo("STATEFP"
                     ,"Congressional"
                     ,"input_data/CongressionalDistricts/cd114/tl_2014_us_cd114.shp"
                     , 'CD114FP'
-                    , 'CongressionalDistrict'
+                    , 'DistrictNumber'
                     , "output_data/US_2014_cd114/cd114Raw.csv")
 
-cd112 = AggregateTo("STATEFP"
+cd113 = AggregateTo("STATEFP"
                     ,"Congressional"
                     ,"input_data/CongressionalDistricts/cd113/tl_2013_us_cd113.shp" # this is weird, the 2013 bit
                     , 'CD113FP'
-                    , 'CongressionalDistrict'
-                    , "output_data/US_2013_cd113/cd113Raw.csv")
+                    , 'DistrictNumber'
+                    , "output_data/US_2012_cd113/cd113Raw.csv")
 
 
 
@@ -236,9 +248,10 @@ def loadShapesAndData(dataFPS, shapeFP, popC, pcIncomeC, joinCol='GISJOIN'):
     print(df_geo.head())
     print("Merging data into shapes")
     df_geo = df_geo.merge(df_dat, on=joinCol)
-    print ("Adding (CEA) area-weighted pop")
+    print ("Adding (CEA) area-weighted pop & pop weighted log density")
     sq_meters_per_sq_km = 1e6
     df_geo["SqKmPop"] = df_geo["TotalPopulation"] * df_geo['geometry'].area / sq_meters_per_sq_km
+    df_geo["PWLogPopPerSqKm"] = df_geo["TotalPopulation"] * numpy.log(df_geo["TotalPopulation"] / (df_geo['geometry'].area / sq_meters_per_sq_km))
     return df_geo, dataCols
 
 def loadAggregateToShapes(fp, stateFIPS):
@@ -276,7 +289,7 @@ def aggregate_simple(df_dat, df_agg, dataCols, districtFIPSInCol, districtFIPSOu
     print("Aggregating small areas (via areal interpolation)")
     df_interp = tobler.area_weighted.area_interpolate(df_dat
                                                       , df_agg
-                                                      , extensive_variables=(['TotalPopulation', 'TotalIncome','SqKmPop'] + dataCols)
+                                                      , extensive_variables=(['TotalPopulation', 'TotalIncome','SqKmPop', 'PWLogPopPerSqKm'] + dataCols)
                                                       , n_jobs=nJobs)
     df_interp = pandas.concat([df_agg[[stateFIPSCol, districtFIPSInCol] + ['SqMiles','SqKm']], df_interp],axis=1) # put the keys + areas back
     print("Removing ZZ entries")
@@ -285,7 +298,8 @@ def aggregate_simple(df_dat, df_agg, dataCols, districtFIPSInCol, districtFIPSOu
     df_interp["PerCapitaIncome"] = df_interp["TotalIncome"]/df_interp["TotalPopulation"]
     df_interp["PopPerSqMile"] = df_interp["TotalPopulation"]/df_interp["SqMiles"]
     sqKm_per_sqMi = 2.58999
-    df_interp["pwPopPerSqMile"] = (df_interp["TotalPopulation"] * df_interp["TotalPopulation"]/df_interp["SqKmPop"]) * sqKm_per_sqMi
+#    df_interp["pwPopPerSqMile"] = (df_interp["TotalPopulation"] * df_interp["TotalPopulation"]/df_interp["SqKmPop"]) * sqKm_per_sqMi
+    df_interp["pwPopPerSqMile"] = numpy.exp((df_interp["PWLogPopPerSqKm"]/df_interp["TotalPopulation"])) * sqKm_per_sqMi
     print ("Reformatting numbers...")
     for col in (dataCols + extraIntCols):
         df_interp[col] = df_interp[col].map(lambda x: reformat(x))
@@ -340,4 +354,18 @@ def doAggregation(acsData, aggTo):
     print ("done.")
 
 
-doAggregation(acs2018, ncProposed)
+#doAggregation(acs2018, vaLower)
+#doAggregation(acs2018, vaUpper)
+#doAggregation(acs2018, txLower)
+#doAggregation(acs2018, txUpper)
+#doAggregation(acs2018, gaLower)
+#doAggregation(acs2018, gaUpper)
+#doAggregation(acs2018, azLower)
+#doAggregation(acs2018, azUpper)
+#doAggregation(acs2018, nvLower)
+#doAggregation(acs2018, nvUpper)
+#doAggregation(acs2018, ohLower)
+#doAggregation(acs2018, ohUpper)
+#doAggregation(acs2018, ncProposed)
+#doAggregation(acs2018,cd116GA )
+doAggregation(acs2018,cd116 )
