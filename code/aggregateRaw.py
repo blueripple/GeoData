@@ -204,10 +204,6 @@ cd113 = AggregateTo("STATEFP"
                     , "output_data/US_2012_cd113/cd113Raw.csv")
 
 
-
-
-
-
 extraIntCols =['TotalPopulation']
 extraFloatCols = ['PerCapitaIncome','SqKm','SqMiles','PopPerSqMile','pwPopPerSqMile','SqKmPop']
 
@@ -353,19 +349,4 @@ def doAggregation(acsData, aggTo):
     toWrite.to_csv(aggTo.outCSV, index=False)
     print ("done.")
 
-
-#doAggregation(acs2018, vaLower)
-#doAggregation(acs2018, vaUpper)
-#doAggregation(acs2018, txLower)
-#doAggregation(acs2018, txUpper)
-#doAggregation(acs2018, gaLower)
-#doAggregation(acs2018, gaUpper)
-#doAggregation(acs2018, azLower)
-#doAggregation(acs2018, azUpper)
-#doAggregation(acs2018, nvLower)
-#doAggregation(acs2018, nvUpper)
-#doAggregation(acs2018, ohLower)
-#doAggregation(acs2018, ohUpper)
-#doAggregation(acs2018, ncProposed)
-#doAggregation(acs2018,cd116GA )
-doAggregation(acs2018,cd116 )
+doAggregation(acs2018,ncProposed)
