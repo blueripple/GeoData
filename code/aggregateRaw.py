@@ -62,6 +62,22 @@ class AggregateTo:
         self.outCSV = outCSV
 
 
+ncLower = AggregateTo(37
+                      ,"StateLower"
+                      ,"input_data/StateLegDistricts/NC/NC_2022_lower.geojson"
+                      ,"NAME"
+                      ,"DistrictNumber"
+                      ,"output_data/StateLegDistricts/nc_2022_sldl.csv")
+
+ncUpper = AggregateTo(37
+                      ,"StateUpper"
+                      ,"input_data/StateLegDistricts/NC/NC_2022_upper.geojson"
+                      ,"NAME"
+                      ,"DistrictNumber"
+                      ,"output_data/StateLegDistricts/mc_2022_sldu.csv")
+
+
+
 ncProposed = AggregateTo(37
                          ,"Congressional"
                          ,"input_data/CongressionalDistricts/cd117-proposed/NC-CST-13.geojson"
@@ -76,6 +92,12 @@ azCongressional = AggregateTo(4
                               ,"DistrictNumber"
                               ,"output_data/US_2020_cd117P/cd117_AZ.csv")
 
+txProposed = AggregateTo(48
+                         ,"Congressional"
+                         ,"input_data/CongressionalDistricts/cd117-proposed/TX-proposed.geojson"
+                         ,"NAME"
+                         ,"DistrictNumber"
+                         ,"output_data/US_2020_cd117P/cd117_TX.csv")
 
 vaLower = AggregateTo("STATEFP"
                       , "StateLower"
