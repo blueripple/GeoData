@@ -69,6 +69,14 @@ ncProposed = AggregateTo(37
                          ,"DistrictNumber"
                          ,"output_data/US_2020_cd117P/cd117_NC.csv")
 
+azCongressional = AggregateTo(4
+                              ,"Congressional"
+                              ,"input_data/CongressionalDistricts/cd117-proposed/AZ.geojson"
+                              ,"NAME"
+                              ,"DistrictNumber"
+                              ,"output_data/US_2020_cd117P/cd117_AZ.csv")
+
+
 vaLower = AggregateTo("STATEFP"
                       , "StateLower"
                       , "input_data/StateLegDistricts/VA/tl_2020_51_sldl20/tl_2017_51_sldl.shp"
@@ -349,4 +357,4 @@ def doAggregation(acsData, aggTo):
     toWrite.to_csv(aggTo.outCSV, index=False)
     print ("done.")
 
-doAggregation(acs2018,ncProposed)
+doAggregation(acs2018,azCongressional)
