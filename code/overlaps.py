@@ -10,14 +10,15 @@ geopandas.options.use_pygeos = True
 
 class NamedShapes:
     """Container for fields required to specify overlap computation"""
-    def __init__(self, stateFIPS, shpFile, nameCol):
+    def __init__(self, stateFIPS, shpFile, nameCol, labelPrefix):
         self.stateFIPS = stateFIPS
         self.shpFile = shpFile
         self.nameCol = nameCol
+        self.labelPrefix = labelPrefix
 
-azCongressional = NamedShapes(4, "input_data/CongressionalDistricts/cd117-proposed/AZ.geojson", "NAME")
+azCongressional = NamedShapes(4, "input_data/CongressionalDistricts/cd117-proposed/AZ.geojson", "NAME","CD")
 
-azSLD = NamedShapes(4, "input_data/StateLegDistricts/AZ/slds_2022.geojson", "NAME")
+azSLD = NamedShapes(4, "input_data/StateLegDistricts/AZ/slds_2022.geojson", "NAME", "SLD")
 
 def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GISJOIN'):
     df_acs_dat, dataCols = loadAndJoinData(acsData.dataCSVs, re.compile(acsData.totalPopCol), joinCol)
@@ -35,7 +36,7 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
     df_acs_geo = df_acs_geo.merge(df_acs_dat, on=joinCol)
     print("Loading named shapes from ", nsComponents.shpFile)
     df_comp_geo = geopandas.read_file(nsComponents.shpFile)
-    shapeNames = list(map(lambda name: 'S' + name, df_comp_geo[nsComponents.nameCol].to_list()))
+    shapeNames = list(map(lambda name: nsComponents.labelPrefix + name, df_comp_geo[nsComponents.nameCol].to_list()))
     nShapes = len(shapeNames)
     for k in range(0, nShapes) :
         col = [0]*nShapes
@@ -62,6 +63,7 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
     for sn in shapeNames :
        to_write[sn] = to_write[sn].astype(int) #df_comp_interp[sn] * df_comp_interp['TotalPopulation']/100
     to_write['TotalPopulation'] = to_write['TotalPopulation'].astype(int)
+    to_write[nsToDecompose.nameCol] = nsToDecompose.labelPrefix + to_write[nsToDecompose.nameCol]
     print ("Writing ", outCSV)
     to_write.to_csv(outCSV,index=False)
 
