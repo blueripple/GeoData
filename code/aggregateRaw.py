@@ -23,23 +23,23 @@ class AggregateTo:
 
 ncLower = AggregateTo(37
                       ,"StateLower"
-                      ,"input_data/StateLegDistricts/NC/NC_2022_lower.geojson"
+                      ,"input_data/StateLegDistricts/NC/Lower.geojson"
                       ,"NAME"
                       ,"DistrictNumber"
                       ,"output_data/StateLegDistricts/nc_2022_sldl.csv")
 
 ncUpper = AggregateTo(37
                       ,"StateUpper"
-                      ,"input_data/StateLegDistricts/NC/NC_2022_upper.geojson"
+                      ,"input_data/StateLegDistricts/NC/Upper.geojson"
                       ,"NAME"
                       ,"DistrictNumber"
-                      ,"output_data/StateLegDistricts/mc_2022_sldu.csv")
+                      ,"output_data/StateLegDistricts/nc_2022_sldu.csv")
 
 
 
 ncProposed = AggregateTo(37
                          ,"Congressional"
-                         ,"input_data/CongressionalDistricts/cd117-proposed/NC-CST-13.geojson"
+                         ,"input_data/CongressionalDistricts/cd117-proposed/NC.geojson"
                          ,"NAME"
                          ,"DistrictNumber"
                          ,"output_data/US_2020_cd117P/cd117_NC.csv")
@@ -326,4 +326,4 @@ def doAggregation(acsData, aggTo):
     toWrite.to_csv(aggTo.outCSV, index=False)
     print ("done.")
 
-doAggregation(acs2018,azSLD)
+doAggregation(acs2018,ncLower)

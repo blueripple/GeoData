@@ -16,9 +16,6 @@ class NamedShapes:
         self.nameCol = nameCol
         self.labelPrefix = labelPrefix
 
-azCongressional = NamedShapes(4, "input_data/CongressionalDistricts/cd117-proposed/AZ.geojson", "NAME","CD")
-
-azSLD = NamedShapes(4, "input_data/StateLegDistricts/AZ/slds_2022.geojson", "NAME", "SLD")
 
 def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GISJOIN'):
     df_acs_dat, dataCols = loadAndJoinData(acsData.dataCSVs, re.compile(acsData.totalPopCol), joinCol)
@@ -67,4 +64,13 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
     print ("Writing ", outCSV)
     to_write.to_csv(outCSV,index=False)
 
-populationOverlaps(acs2018,azCongressional,azSLD, "test.csv")
+azCongressional = NamedShapes(4, "input_data/CongressionalDistricts/cd117-proposed/AZ.geojson", "NAME","CD")
+azSLD = NamedShapes(4, "input_data/StateLegDistricts/AZ/slds_2022.geojson", "NAME", "SLD")
+
+ncCongressional = NamedShapes(37, "input_data/CongressionalDistricts/cd117-proposed/NC.geojson", "NAME","CD")
+ncSLDU = NamedShapes(37, "input_data/StateLegDistricts/NC/Upper.geojson", "NAME","SLDU")
+ncSLDL = NamedShapes(37, "input_data/StateLegDistricts/NC/Lower.geojson", "NAME","SLDL")
+
+#populationOverlaps(acs2018, azCongressional, azSLD, "output_data/districtOverlaps/AZ_SLD_CD.csv")
+#populationOverlaps(acs2018, ncCongressional, ncSLDU, "output_data/districtOverlaps/NC_SLDU_CD.csv")
+populationOverlaps(acs2018, ncCongressional, ncSLDL, "output_data/districtOverlaps/NC_SLDL_CD.csv")
