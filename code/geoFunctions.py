@@ -39,7 +39,27 @@ def loadAndJoinData(fps, colPat=re.compile('^[A-Z0-9]+E\d+$'), joinCol='GISJOIN'
         dataCols = dataCols + dataColsA
     return df, dataCols
 
+class StatesInfo:
+    def __init__(self, fipsFromAbbr, oneDistrict, sldUpperOnly, noMaps):
+        self.fipsFromAbbr = fipsFromAbbr
+        self.oneDistrict = oneDistrict
+        self.sldUpperOnly = sldUpperOnly
+        self.noMaps = noMaps
 
+
+def loadStatesInfo(fp="../data-sets/data/dictionaries/states.csv"):
+    statesAnd_df = pandas.read_csv(fp,encoding='latin-1')
+    states_df = statesAnd_df[statesAnd_df["StateFIPS"] < 60]
+    fipsFromAbbr = states_df[["StateAbbreviation","StateFIPS"]].set_index("StateAbbreviation").T.to_dict('records')[0]
+    print (fipsFromAbbr)
+    od_df = states_df[states_df["OneDistrict"] == True]["StateAbbreviation"]
+    oneDistrict = set(od_df)
+    print(oneDistrict)
+    sldUO_df = states_df[states_df["SLDUpperOnly"] == True]["StateAbbreviation"]
+    sldUpperOnly = set(sldUO_df)
+    print(sldUpperOnly)
+    noMaps = set(["FL","LA","MO","NH","OH"])
+    return StatesInfo(fipsFromAbbr, oneDistrict, sldUpperOnly, noMaps)
 
 
 acs2018 = ACSData(["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
@@ -74,3 +94,9 @@ acs2012 = ACSData (["input_data/NHGIS/US_2012_tract_csv/nhgis0030_ds192_20125_20
                    , 'QSPE001'
                    , 'QWUE001'
                    )
+
+si = loadStatesInfo()
+#print(si.fipsFromAbbr)
+#print(si.oneDistrict)
+#print(si.sldUpperOnly)
+#print(si.noMaps)

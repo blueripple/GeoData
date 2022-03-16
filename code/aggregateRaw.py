@@ -365,17 +365,12 @@ def doAggregation(acsData, aggTo):
     toWrite.to_csv(aggTo.outCSV, index=False)
     print ("done.")
 
-oneDistrictStatesAndFIPS = [("AK",2),("DE",10),("ND",38),("SD",46),("VT",50),("WY",56)]
-noMaps=[("FL",11),("LA",22),("MO",29),("NH",33),("OH",39)]
-statesAndFIPS = [("AL",1),("AZ",4),("AR",5),("CA",6),("CO",8),("CT",9),("GA",13),("HI",15),("ID",16)
-                 ,("IL",17),("IN",18),("IA",19),("KS",20),("KY",21),("ME",23),("MD",24),("MA",25),("MI",26)
-                 ,("MN",27),("MS",28),("MT",30),("NE",31),("NV",32),("NJ",34),("NM",35),("NY",36),("NC",37)
-                 ,("OK",40),("OR",41),("PA",42),("RI",44),("SC",45),("TN",47),("TX",48),("UT",49),("VA",51)
-                 ,("WA",53),("WV",54),("WI",55)]
+si = loadStatesInfo()
+cdStatesAndFIPS = si.fipsFromAbbr.copy()
+[cdStatesAndFIPS.pop(key) for key in si.oneDistrict.union(si.noMaps)]
+print(cdStatesAndFIPS.items())
 
-sldUpperOnly = ["AZ","ID","NE","NJ","WA"]
-
-list(map(lambda t:aggDRCongressional(t[0], t[1]), statesAndFIPS))
+list(map(lambda t:aggDRCongressional(t[0], t[1]), cdStatesAndFIPS.items()))
 
 
 #doAggregation(acs2018,ncLower)
