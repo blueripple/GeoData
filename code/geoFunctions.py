@@ -29,9 +29,10 @@ def loadAndJoinData(fps, colPat=re.compile('^[A-Z0-9]+E\d+$'), joinCol='GISJOIN'
     if len(fps) == 0:
         raise RuntimeError("No files given to loadAndJoinData")
     print("Loading tract data tables")
-    fp0 = fps.pop()
+    fps_local = fps.copy()
+    fp0 = fps_local.pop()
     df, dataCols = dataAndColsForMerge(fp0, colPat)
-    for fp in fps:
+    for fp in fps_local:
         dfA, dataColsA = dataAndColsForMerge(fp, colPat)
         print ("joining data on", joinCol)
         df = df.set_index(joinCol).join(dfA.set_index(joinCol))

@@ -21,6 +21,18 @@ class AggregateTo:
         self.outCSV = outCSV
 
 
+def aggDRCongressional(stateAbbreviation, stateFIPS):
+    print("Building district demographics for ", stateAbbreviation, " congressional districts.")
+    aggTo = AggregateTo(stateFIPS
+                        ,"Congressional"
+                        ,"input_data/CongressionalDistricts/cd117/" + stateAbbreviation + ".geojson"
+                        ,"NAME"
+                        ,"DistrictNumber"
+                        ,"output_data/US_2020_cd117P/cd117_" + stateAbbreviation + ".csv"
+                        )
+    doAggregation(acs2018, aggTo)
+    print(stateAbbreviation, " done.")
+
 ncLower = AggregateTo(37
                       ,"StateLower"
                       ,"input_data/StateLegDistricts/NC/Lower.geojson"
@@ -39,14 +51,14 @@ ncUpper = AggregateTo(37
 
 ncProposed = AggregateTo(37
                          ,"Congressional"
-                         ,"input_data/CongressionalDistricts/cd117-proposed/NC.geojson"
+                         ,"input_data/CongressionalDistricts/cd117/NC.geojson"
                          ,"NAME"
                          ,"DistrictNumber"
                          ,"output_data/US_2020_cd117P/cd117_NC.csv")
 
 azCongressional = AggregateTo(4
                               ,"Congressional"
-                              ,"input_data/CongressionalDistricts/cd117-proposed/AZ.geojson"
+                              ,"input_data/CongressionalDistricts/cd117/AZ.geojson"
                               ,"NAME"
                               ,"DistrictNumber"
                               ,"output_data/US_2020_cd117P/cd117_AZ.csv")
@@ -60,7 +72,7 @@ azSLD = AggregateTo(4
 
 txProposed = AggregateTo(48
                          ,"Congressional"
-                         ,"input_data/CongressionalDistricts/cd117-proposed/TX-proposed.geojson"
+                         ,"input_data/CongressionalDistricts/cd117/TX-proposed.geojson"
                          ,"NAME"
                          ,"DistrictNumber"
                          ,"output_data/US_2020_cd117P/cd117_TX.csv")
@@ -206,9 +218,10 @@ extraFloatCols = ['PerCapitaIncome','SqKm','SqMiles','PopPerSqMile','pwPopPerSqM
 
 
 def addPopAndIncome(df_dat, popC, pcIncomeC):
-    df_dat["TotalPopulation"] = df_dat[popC]
-    df_dat["TotalIncome"] = df_dat[popC] * df_dat[pcIncomeC]
-    return df_dat
+    df_dat2 = df_dat.copy()
+    df_dat2["TotalPopulation"] = df_dat2[popC]
+    df_dat2["TotalIncome"] = df_dat2[popC] * df_dat2[pcIncomeC]
+    return df_dat2
 
 def loadShapesAndData(dataFPS, shapeFP, popC, pcIncomeC, colPat= re.compile('^[A-Z0-9]+E\d+$'), joinCol='GISJOIN'):
     df_dat, dataCols = loadAndJoinData(dataFPS, colPat, joinCol)
@@ -251,20 +264,20 @@ def reformat(x):
 
 def reProjectBoth(df_dat, df_agg, crs='EPSG:3857'):
     print("Projecting small areas to ", crs)
-    df_dat = df_dat.to_crs(crs)
+    df_dat2 = df_dat.copy().to_crs(crs)
     print("Projecting aggregate-to areas to ",crs)
-    df_agg = df_agg.to_crs(crs)
-    return df_dat, df_agg
+    df_agg2 = df_agg.copy().to_crs(crs)
+    return df_dat2, df_agg2
 
 def aggregate_simple(df_dat, df_agg, dataCols, districtFIPSInCol, districtFIPSOutCol, stateFIPSCol='STATEFP', nJobs=-1):
     crs = 'EPSG:3857'
-    df_dat, df_agg = reProjectBoth(df_dat, df_agg, crs)
+    df_dat2, df_agg2 = reProjectBoth(df_dat, df_agg, crs)
     print("Aggregating small areas (via areal interpolation)")
-    df_interp = tobler.area_weighted.area_interpolate(df_dat
-                                                      , df_agg
+    df_interp = tobler.area_weighted.area_interpolate(df_dat2
+                                                      , df_agg2
                                                       , extensive_variables=(['TotalPopulation', 'TotalIncome','SqKmPop', 'PWLogPopPerSqKm'] + dataCols)
                                                       , n_jobs=nJobs)
-    df_interp = pandas.concat([df_agg[[stateFIPSCol, districtFIPSInCol] + ['SqMiles','SqKm']], df_interp],axis=1) # put the keys + areas back
+    df_interp = pandas.concat([df_agg2[[stateFIPSCol, districtFIPSInCol] + ['SqMiles','SqKm']], df_interp],axis=1) # put the keys + areas back
     print("Removing ZZ entries")
     df_interp = df_interp[(df_interp[districtFIPSInCol] != "ZZ")]
     df_interp = df_interp.rename(columns={stateFIPSCol: "StateFIPS", districtFIPSInCol: districtFIPSOutCol})
@@ -326,4 +339,12 @@ def doAggregation(acsData, aggTo):
     toWrite.to_csv(aggTo.outCSV, index=False)
     print ("done.")
 
-doAggregation(acs2018,ncLower)
+oneDistrictStatesAndFIPS = [("AK",2),("DE",10),("ND",38),("SD",46),("VT",50),("WY",56)]
+noMaps=[("FL",11),("LA",22),("MO",29),("NH",33),("OH",39)]
+statesAndFIPS = [("AL",1),("AZ",4),("AR",5),("CA",6),("CO",8),("CT",9),("GA",13),("HI",15),("ID",16)
+                 ,("IL",17),("IN",18),("IA",19),("KS",20),("KY",21),("ME",23),("MD",24),("MA",25),("MI",26)
+                 ,("MN",27),("MS",28),("MT",30),("NE",31),("NV",32),("NJ",34),("NM",35),("NY",36),("NC",37)
+                 ,("OK",40),("OR",41),("PA",42),("RI",44),("SC",45),("TN",47),("TX",48),("UT",49),("VA",51)
+                 ,("WA",53),("WV",54),("WI",55)]
+list(map(lambda t:aggDRCongressional(t[0], t[1]), statesAndFIPS))
+#doAggregation(acs2018,ncLower)
