@@ -4,6 +4,7 @@ import tobler
 import re
 import numpy
 #from quilt3 import Package #for nlcd
+from os.path import exists
 from geoFunctions import *
 geopandas.options.use_pygeos = True
 
@@ -27,11 +28,36 @@ def aggDRCongressional(stateAbbreviation, stateFIPS):
                         ,"Congressional"
                         ,"input_data/CongressionalDistricts/cd117/" + stateAbbreviation + ".geojson"
                         ,"NAME"
-                        ,"DistrictNumber"
-                        ,"output_data/US_2020_cd117P/cd117_" + stateAbbreviation + ".csv"
+                        ,"DistrictName"
+                        ,"../bigData/Census/cd117_" + stateAbbreviation + ".csv"
                         )
     doAggregation(acs2018, aggTo)
     print(stateAbbreviation, " done.")
+
+def aggSLD(stateAbbreviation, stateFIPS, upperOnly=False):
+    print("Building district demographics for ", stateAbbreviation, " state-leg districts.")
+    print("Upper")
+    aggTo = AggregateTo(stateFIPS
+                        ,"StateUpper"
+                        ,"input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldu.geojson"
+                        ,"NAME"
+                        ,"DistrictName"
+                        ,"../bigData/Census/" + stateAbbreviation + "_2022_sldu.csv"
+                        )
+    doAggregation(acs2018, aggTo)
+    print("done")
+    if upperOnly is False:
+        print("Lower")
+        aggTo = AggregateTo(stateFIPS
+                        ,"StateLower"
+                        ,"input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldl.geojson"
+                        ,"NAME"
+                        ,"DistrictName"
+                        ,"../bigData/Census/" + stateAbbreviation + "_2022_sldl.csv"
+                        )
+        doAggregation(acs2018, aggTo)
+        print("done")
+
 
 ncLower = AggregateTo(37
                       ,"StateLower"
@@ -346,5 +372,10 @@ statesAndFIPS = [("AL",1),("AZ",4),("AR",5),("CA",6),("CO",8),("CT",9),("GA",13)
                  ,("MN",27),("MS",28),("MT",30),("NE",31),("NV",32),("NJ",34),("NM",35),("NY",36),("NC",37)
                  ,("OK",40),("OR",41),("PA",42),("RI",44),("SC",45),("TN",47),("TX",48),("UT",49),("VA",51)
                  ,("WA",53),("WV",54),("WI",55)]
+
+sldUpperOnly = ["AZ","ID","NE","NJ","WA"]
+
 list(map(lambda t:aggDRCongressional(t[0], t[1]), statesAndFIPS))
+
+
 #doAggregation(acs2018,ncLower)
