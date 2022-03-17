@@ -350,20 +350,25 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
 '''
 
 def doAggregation(acsData, aggTo):
-    df_tracts, tract_dataCols = loadShapesAndData(acsData.dataCSVs, acsData.dataShapes, acsData.totalPopCol, acsData.pcIncomeCol)
-    df_cds = loadAggregateToShapes(aggTo.aggToShpFile,aggTo.stateFP)
-    if type(aggTo.stateFP) is int:
-        stateFPCol = "STATEFP"
+    inputFPs = acsData.dataCSVs.copy()
+    inputFPs.append(acsData.dataShapes)
+    inputFPs.append(aggTo.aggToShpFile)
+    if resultIsOlderOrMissing(aggTo.outCSV,inputFPs):
+        df_tracts, tract_dataCols = loadShapesAndData(acsData.dataCSVs, acsData.dataShapes, acsData.totalPopCol, acsData.pcIncomeCol)
+        df_cds = loadAggregateToShapes(aggTo.aggToShpFile,aggTo.stateFP)
+        if type(aggTo.stateFP) is int:
+            stateFPCol = "STATEFP"
+        else:
+            stateFPCol = aggTo.stateFP
+        df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggTo.aggToCol, aggTo.distCol, stateFPCol)
+        outCols = ['StateFIPS',aggTo.distCol] + extraIntCols + extraFloatCols + tract_dataCols
+        print ("Writing ", aggTo.outCSV)
+        toWrite = df_aggregated[outCols]
+        toWrite.insert(1,'DistrictType',aggTo.districtType)
+        toWrite.to_csv(aggTo.outCSV, index=False)
+        print ("done.")
     else:
-        stateFPCol = aggTo.stateFP
-
-    df_aggregated = aggregate_simple(df_tracts, df_cds, tract_dataCols, aggTo.aggToCol, aggTo.distCol, stateFPCol)
-    outCols = ['StateFIPS',aggTo.distCol] + extraIntCols + extraFloatCols + tract_dataCols
-    print ("Writing ", aggTo.outCSV)
-    toWrite = df_aggregated[outCols]
-    toWrite.insert(1,'DistrictType',aggTo.districtType)
-    toWrite.to_csv(aggTo.outCSV, index=False)
-    print ("done.")
+        print(aggTo.outCSV + " exists and is current with inputs.  Skipping.")
 
 si = loadStatesInfo()
 cdStatesAndFIPS = si.fipsFromAbbr.copy()

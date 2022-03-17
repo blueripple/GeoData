@@ -3,7 +3,7 @@ import pandas
 import tobler
 import re
 import numpy
-from os.path import getmtime
+from os.path import getmtime, exists
 #from quilt3 import Package #for nlcd
 
 geopandas.options.use_pygeos = True
@@ -64,13 +64,15 @@ def loadStatesInfo(fp="../data-sets/data/dictionaries/states.csv"):
     return StatesInfo(fipsFromAbbr, oneDistrict, sldUpperOnly, noMaps)
 
 
-def resultIsOlder(resultFP, inputFPs):
-    latestInput = list(map(lambda fp:getmtime(fp), inputsFP)).max()
-    if latestInput > getmtime resultFP:
-        return True
+def resultIsOlderOrMissing(resultFP, inputFPs):
+    if exists(resultFP):
+        latestInput = max(list(map(lambda fp:getmtime(fp), inputFPs)))
+        if latestInput > getmtime(resultFP):
+            return True
+        else:
+            return False
     else:
-        return False
-
+        return True
 
 acs2018 = ACSData(["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
                    , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
