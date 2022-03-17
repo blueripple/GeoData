@@ -34,7 +34,7 @@ def aggDRCongressional(stateAbbreviation, stateFIPS):
     doAggregation(acs2018, aggTo)
     print(stateAbbreviation, " done.")
 
-def aggSLD(stateAbbreviation, stateFIPS, upperOnly=False):
+def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
     print("Building district demographics for ", stateAbbreviation, " state-leg districts.")
     print("Upper")
     aggTo = AggregateTo(stateFIPS
@@ -46,7 +46,7 @@ def aggSLD(stateAbbreviation, stateFIPS, upperOnly=False):
                         )
     doAggregation(acs2018, aggTo)
     print("done")
-    if upperOnly is False:
+    if not(stateAbbreviation in upperOnly):
         print("Lower")
         aggTo = AggregateTo(stateFIPS
                         ,"StateLower"
@@ -199,8 +199,8 @@ cd116NC = AggregateTo(37
                       ,"Congressional"
                       ,"input_data/CongressionalDistricts/DRA-cd116/NC.geojson"
                       , 'NAME'
-                      , 'DistrictNumber'
-                      , "output_data/US_2018_cd116/NC_DRA.csv")
+                      , 'DistrictName'
+                      , "../bigData/Census/NC_DRA.csv")
 
 cd116GA = AggregateTo(37
                       ,"Congressional"
@@ -371,11 +371,15 @@ def doAggregation(acsData, aggTo):
         print(aggTo.outCSV + " exists and is current with inputs.  Skipping.")
 
 si = loadStatesInfo()
+
 cdStatesAndFIPS = si.fipsFromAbbr.copy()
 [cdStatesAndFIPS.pop(key) for key in si.oneDistrict.union(si.noMaps)]
-print(cdStatesAndFIPS.items())
-
 list(map(lambda t:aggDRCongressional(t[0], t[1]), cdStatesAndFIPS.items()))
 
+sldStatesAndFIPS = si.fipsFromAbbr.copy()
+[sldStatesAndFIPS.pop(key) for key in si.noMaps]
+sldStatesAndFIPS.pop("DC")
+list(map(lambda t:aggSLD(t[0], t[1],si.sldUpperOnly), sldStatesAndFIPS.items()))
 
-#doAggregation(acs2018,ncLower)
+# this one requires a separate run since it's for extant districts
+doAggregation(acs2018,cd116NC)
