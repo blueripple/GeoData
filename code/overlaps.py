@@ -10,11 +10,10 @@ geopandas.options.use_pygeos = True
 
 class NamedShapes:
     """Container for fields required to specify overlap computation"""
-    def __init__(self, stateFIPS, shpFile, nameCol, labelPrefix):
+    def __init__(self, stateFIPS, shpFile, nameCol):
         self.stateFIPS = stateFIPS
         self.shpFile = shpFile
         self.nameCol = nameCol
-        self.labelPrefix = labelPrefix
 
 
 def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GISJOIN'):
@@ -33,7 +32,8 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
     df_acs_geo = df_acs_geo.merge(df_acs_dat, on=joinCol)
     print("Loading named shapes from ", nsComponents.shpFile)
     df_comp_geo = geopandas.read_file(nsComponents.shpFile)
-    shapeNames = list(map(lambda name: nsComponents.labelPrefix + name, df_comp_geo[nsComponents.nameCol].to_list()))
+    #shapeNames = list(map(lambda name: nsComponents.labelPrefix + name, df_comp_geo[nsComponents.nameCol].to_list()))
+    shapeNames = df_comp_geo[nsComponents.nameCol].to_list()
     nShapes = len(shapeNames)
     for k in range(0, nShapes) :
         col = [0]*nShapes
@@ -60,17 +60,51 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
     for sn in shapeNames :
        to_write[sn] = to_write[sn].astype(int) #df_comp_interp[sn] * df_comp_interp['TotalPopulation']/100
     to_write['TotalPopulation'] = to_write['TotalPopulation'].astype(int)
-    to_write[nsToDecompose.nameCol] = nsToDecompose.labelPrefix + to_write[nsToDecompose.nameCol]
+#    to_write[nsToDecompose.nameCol] = nsToDecompose.labelPrefix + to_write[nsToDecompose.nameCol]
     print ("Writing ", outCSV)
     to_write.to_csv(outCSV,index=False)
 
-azCongressional = NamedShapes(4, "input_data/CongressionalDistricts/cd117-proposed/AZ.geojson", "NAME","CD")
-azSLD = NamedShapes(4, "input_data/StateLegDistricts/AZ/slds_2022.geojson", "NAME", "SLD")
+def stateOverlaps(stateAbbreviation, stateFIPS, upperOnly):
+    print ("computing overlaps for " + stateAbbreviation)
+    print ("Upper (or only)")
+    congressionalFP =  "input_data/CongressionalDistricts/cd117/" + stateAbbreviation + ".geojson"
+    congressionalNS =  NamedShapes(stateFIPS, congressionalFP, "NAME")
+    upperFP = "input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldu.geojson"
+    lowerFP = "input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldl.geojson"
+    upper = NamedShapes(stateFIPS, upperFP, "NAME")
+    upperInputs = [congressionalFP, upperFP]
+    upperResult =  "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDU_CD.csv"
+    lowerResult =  "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDL_CD.csv"
+    if resultIsOlder(upperResult,upperInputs):
+        populationOverlaps(acs2018, congressional, upper, "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDU_CD.csv")
+    else:
+        print("Result exists already and is newer than inputs.  Skipping.")
+    if stateAbbreviation in upperOnly:
+        print ("Lower")
+        lowerInputs = [congressionalFP, lowerFP]
 
-ncCongressional = NamedShapes(37, "input_data/CongressionalDistricts/cd117-proposed/NC.geojson", "NAME","CD")
-ncSLDU = NamedShapes(37, "input_data/StateLegDistricts/NC/Upper.geojson", "NAME","SLDU")
-ncSLDL = NamedShapes(37, "input_data/StateLegDistricts/NC/Lower.geojson", "NAME","SLDL")
+        if resultIsOlder(lowerResult,lowerInputs):
+            lower = NamedShapes(stateFIPS, "input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldl.geojson", "NAME")
+            populationOverlaps(acs2018, congressional, upper, "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDL_CD.csv")
+        else:
+            print("Result exists already and is newer than inputs.  Skipping.")
+    else:
+        print ("No lower districts.")
+    print(stateAbbreviation + " done!")
+
+si = loadStatesInfo()
+cdStatesAndFIPS = cdStatesAndFIPS = si.fipsFromAbbr.copy()
+[cdStatesAndFIPS.pop(key) for key in si.noMaps]
+list(map(lambda t:stateOverlaps(t[0], t[1],si.sldUpperOnly), cdStatesAndFIPS.items()))
+
+
+#azCongressional = NamedShapes(4, "input_data/CongressionalDistricts/cd117/AZ.geojson", "NAME")
+#azSLD = NamedShapes(4, "input_data/StateLegDistricts/AZ/slds_2022.geojson", "NAME")
+
+#ncCongressional = NamedShapes(37, "input_data/CongressionalDistricts/cd117/NC.geojson", "NAME")
+#ncSLDU = NamedShapes(37, "input_data/StateLegDistricts/NC/NC_2022_sldu.geojson", "NAME")
+#ncSLDL = NamedShapes(37, "input_data/StateLegDistricts/NC/NC_2022_sldl.geojson", "NAME")
 
 #populationOverlaps(acs2018, azCongressional, azSLD, "output_data/districtOverlaps/AZ_SLD_CD.csv")
 #populationOverlaps(acs2018, ncCongressional, ncSLDU, "output_data/districtOverlaps/NC_SLDU_CD.csv")
-populationOverlaps(acs2018, ncCongressional, ncSLDL, "output_data/districtOverlaps/NC_SLDL_CD.csv")
+#populationOverlaps(acs2018, ncCongressional, ncSLDL, "output_data/districtOverlaps/NC_SLDL_CD.csv")
