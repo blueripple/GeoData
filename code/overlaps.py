@@ -10,10 +10,11 @@ geopandas.options.use_pygeos = True
 
 class NamedShapes:
     """Container for fields required to specify overlap computation"""
-    def __init__(self, stateFIPS, shpFile, nameCol):
+    def __init__(self, stateFIPS, shpFile, nameCol, filterGeoToState = ''):
         self.stateFIPS = stateFIPS
         self.shpFile = shpFile
         self.nameCol = nameCol
+        self.filterGeoToState = filterGeoToState
 
 
 def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GISJOIN'):
@@ -36,6 +37,8 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
         df_acs_geo = df_acs_geo.merge(df_acs_dat, on=joinCol)
         print("Loading named shapes from ", nsComponents.shpFile)
         df_comp_geo = geopandas.read_file(nsComponents.shpFile)
+        if nsComponents.filterGeoToState:
+            df_comp_geo = df_comp_geo[df_comp_geo[nsComponents.filterGeoToState].astype(int) == int(nsComponents.stateFIPS)]
         #shapeNames = list(map(lambda name: nsComponents.labelPrefix + name, df_comp_geo[nsComponents.nameCol].to_list()))
         shapeNames = df_comp_geo[nsComponents.nameCol].to_list()
         nShapes = len(shapeNames)
@@ -53,6 +56,8 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
         print (df_comp_interp.head())
         print("Loading named shapes from ", nsToDecompose.shpFile)
         df_to_geo = geopandas.read_file(nsToDecompose.shpFile)
+        if nsToDecompose.filterGeoToState:
+            df_comp_geo = df_comp_geo[df_comp_geo[nsToDecompose.filterGeoToState] == nsToDecompose.stateFIPS]
         print ("projecting shapes to EPSG:3857")
         df_to_geo = df_to_geo.to_crs('EPSG:3857')
         df_comp_interp = df_comp_interp.to_crs('EPSG:3857')
@@ -80,19 +85,32 @@ def stateOverlaps(stateAbbreviation, stateFIPS, upperOnly):
     upperNS = NamedShapes(stateFIPS, upperFP, "NAME")
     upperResult =  "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDU_CD.csv"
     lowerResult =  "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDL_CD.csv"
-    populationOverlaps(acs2018, congressionalNS, upperNS, "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDU_CD.csv")
+    populationOverlaps(acs2018, congressionalNS, upperNS, upperResult)
     if not(stateAbbreviation in upperOnly):
         print ("Lower")
-        lowerNS = NamedShapes(stateFIPS, "input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldl.geojson", "NAME")
-        populationOverlaps(acs2018, congressionalNS, lowerNS, "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDL_CD.csv")
+        lowerNS = NamedShapes(stateFIPS, lowerFP, "NAME")
+        populationOverlaps(acs2018, congressionalNS, lowerNS, lowerResult)
     else:
         print ("No lower districts.")
     print(stateAbbreviation + " done!")
 
+def oldCDOverlaps(stateAbbreviation, stateFIPS):
+    print ("computing old-CD overlaps for " + stateAbbreviation)
+    cd116FP = "input_data/CongressionalDistricts/cd116/tl_2021_us_cd116.shp"
+    oldNS = NamedShapes(stateFIPS, cd116FP, 'CD116FP','STATEFP')
+    congressionalFP =  "input_data/CongressionalDistricts/cd117/" + stateAbbreviation + ".geojson"
+    congressionalNS =  NamedShapes(stateFIPS, congressionalFP, "NAME")
+    result =  "../research/data/cdOverlaps/" + stateAbbreviation + ".csv"
+    populationOverlaps(acs2018, oldNS, congressionalNS, result)
+
+
 si = loadStatesInfo()
 cdStatesAndFIPS = cdStatesAndFIPS = si.fipsFromAbbr.copy()
 [cdStatesAndFIPS.pop(key) for key in (si.noMaps.copy().union(si.oneDistrict))]
+list(map(lambda t:oldCDOverlaps(t[0], t[1]), cdStatesAndFIPS.items()))
 list(map(lambda t:stateOverlaps(t[0], t[1],si.sldUpperOnly), cdStatesAndFIPS.items()))
+
+
 
 
 #azCongressional = NamedShapes(4, "input_data/CongressionalDistricts/cd117/AZ.geojson", "NAME")

@@ -373,7 +373,7 @@ def doAggregation(acsData, aggTo):
 si = loadStatesInfo()
 
 cdStatesAndFIPS = si.fipsFromAbbr.copy()
-[cdStatesAndFIPS.pop(key) for key in si.oneDistrict.union(si.noMaps)]
+[cdStatesAndFIPS.pop(key) for key in si.oneDistrict.copy().union(si.noMaps)]
 list(map(lambda t:aggDRCongressional(t[0], t[1]), cdStatesAndFIPS.items()))
 
 sldStatesAndFIPS = si.fipsFromAbbr.copy()
