@@ -57,7 +57,7 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
         print("Loading named shapes from ", nsToDecompose.shpFile)
         df_to_geo = geopandas.read_file(nsToDecompose.shpFile)
         if nsToDecompose.filterGeoToState:
-            df_comp_geo = df_comp_geo[df_comp_geo[nsToDecompose.filterGeoToState] == nsToDecompose.stateFIPS]
+            df_comp_geo = df_comp_geo[df_comp_geo[nsToDecompose.filterGeoToState].asType(int) == int(nsToDecompose.stateFIPS)]
         print ("projecting shapes to EPSG:3857")
         df_to_geo = df_to_geo.to_crs('EPSG:3857')
         df_comp_interp = df_comp_interp.to_crs('EPSG:3857')
