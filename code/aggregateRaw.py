@@ -21,7 +21,6 @@ class AggregateTo:
         self.distCol = distCol #output column name for district number ?
         self.outCSV = outCSV
 
-
 def aggDRCongressional(stateAbbreviation, stateFIPS):
     print("Building district demographics for ", stateAbbreviation, " congressional districts.")
     aggTo = AggregateTo(stateFIPS
@@ -31,7 +30,7 @@ def aggDRCongressional(stateAbbreviation, stateFIPS):
                         ,"DistrictName"
                         ,"../bigData/Census/cd117_" + stateAbbreviation + ".csv"
                         )
-    doAggregation(acs2020, aggTo)
+    doAggregation(acs2020, aggTo, stateFIPS)
     print(stateAbbreviation, " done.")
 
 def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
@@ -44,7 +43,7 @@ def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
                         ,"DistrictName"
                         ,"../bigData/Census/" + stateAbbreviation + "_2022_sldu.csv"
                         )
-    doAggregation(acs2020, aggTo)
+    doAggregation(acs2020, aggTo, stateFIPS)
     print("done")
     if not(stateAbbreviation in upperOnly):
         print("Lower")
@@ -55,7 +54,7 @@ def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
                         ,"DistrictName"
                         ,"../bigData/Census/" + stateAbbreviation + "_2022_sldl.csv"
                         )
-        doAggregation(acs2020, aggTo)
+        doAggregation(acs2020, aggTo, stateFIPS)
         print("done")
 
 
@@ -249,12 +248,16 @@ def addPopAndIncome(df_dat, popC, pcIncomeC):
     df_dat2["TotalIncome"] = df_dat2[popC] * df_dat2[pcIncomeC]
     return df_dat2
 
-def loadShapesAndData(dataFPS, shapeFP, popC, pcIncomeC, colPat= re.compile('^[A-Z0-9]+E\d+$'), joinCol='GISJOIN'):
+def loadShapesAndData(dataFPS, shapeFP, popC, pcIncomeC, colPat= re.compile('^[A-Z0-9]+E\d+$'), joinCol='GISJOIN',stateFIPS=''):
     df_dat, dataCols = loadAndJoinData(dataFPS, colPat, joinCol)
     df_dat = addPopAndIncome(df_dat, popC, pcIncomeC)
     print (df_dat.head())
     print("Loading tract shapefile")
     df_geo = geopandas.read_file(shapeFP)
+    df_geo['STATEFP'] = df_geo['STATEFP'].astype(int)
+#    stateFIPSInt = stateFIPS.astype(int)
+    if stateFIPS:
+        df_geo.query('STATEFP == @stateFIPS', inplace=True)
     print ("Adding area*pop, after projecting to CEA")
     df_geo = df_geo.to_crs({'proj':'cea'})
     print(df_geo.head())
@@ -349,12 +352,12 @@ def aggregate_dasymmetric(nlcd, df_dat, df_agg, dataCols, districtFIPSCol, state
     return df_interp
 '''
 
-def doAggregation(acsData, aggTo):
+def doAggregation(acsData, aggTo, stateFIPS=''):
     inputFPs = acsData.dataCSVs.copy()
     inputFPs.append(acsData.dataShapes)
     inputFPs.append(aggTo.aggToShpFile)
     if resultIsOlderOrMissing(aggTo.outCSV,inputFPs):
-        df_tracts, tract_dataCols = loadShapesAndData(acsData.dataCSVs, acsData.dataShapes, acsData.totalPopCol, acsData.pcIncomeCol)
+        df_tracts, tract_dataCols = loadShapesAndData(acsData.dataCSVs, acsData.dataShapes, acsData.totalPopCol, acsData.pcIncomeCol, stateFIPS=stateFIPS)
         df_cds = loadAggregateToShapes(aggTo.aggToShpFile,aggTo.stateFP)
         if type(aggTo.stateFP) is int:
             stateFPCol = "STATEFP"
