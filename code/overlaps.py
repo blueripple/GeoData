@@ -85,11 +85,11 @@ def stateOverlaps(stateAbbreviation, stateFIPS, upperOnly):
     upperNS = NamedShapes(stateFIPS, upperFP, "NAME")
     upperResult =  "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDU_CD.csv"
     lowerResult =  "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDL_CD.csv"
-    populationOverlaps(acs2018, congressionalNS, upperNS, upperResult)
+    populationOverlaps(acs2020, congressionalNS, upperNS, upperResult)
     if not(stateAbbreviation in upperOnly):
         print ("Lower")
         lowerNS = NamedShapes(stateFIPS, lowerFP, "NAME")
-        populationOverlaps(acs2018, congressionalNS, lowerNS, lowerResult)
+        populationOverlaps(acs2020, congressionalNS, lowerNS, lowerResult)
     else:
         print ("No lower districts.")
     print(stateAbbreviation + " done!")
@@ -101,7 +101,7 @@ def oldCDOverlaps(stateAbbreviation, stateFIPS):
     congressionalFP =  "input_data/CongressionalDistricts/cd117/" + stateAbbreviation + ".geojson"
     congressionalNS =  NamedShapes(stateFIPS, congressionalFP, "NAME")
     result =  "../research/data/cdOverlaps/" + stateAbbreviation + ".csv"
-    populationOverlaps(acs2018, oldNS, congressionalNS, result)
+    populationOverlaps(acs2020, oldNS, congressionalNS, result)
 
 
 si = loadStatesInfo()

@@ -74,6 +74,16 @@ def resultIsOlderOrMissing(resultFP, inputFPs):
     else:
         return True
 
+acs2020 = ACSData(["input_data/NHGIS/US_2020_tract_csv/nhgis0034_ds249_20205_tract_E.csv"
+                   , "input_data/NHGIS/US_2020_tract_csv/nhgis0034_ds250_20205_tract_E.csv"]
+                  , "input_data/NHGIS/US_2020_tract_shapefile/US_tract_2020.shp"
+                  , "nlcd_2016.tif"
+                  , 'AMPVE001'
+                  , 'AMTCE001'
+                  )
+
+
+
 acs2018 = ACSData(["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
                    , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]
                   , "input_data/NHGIS/US_2018_tract_shapefile/US_tract_2018.shp"

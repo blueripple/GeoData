@@ -31,7 +31,7 @@ def aggDRCongressional(stateAbbreviation, stateFIPS):
                         ,"DistrictName"
                         ,"../bigData/Census/cd117_" + stateAbbreviation + ".csv"
                         )
-    doAggregation(acs2018, aggTo)
+    doAggregation(acs2020, aggTo)
     print(stateAbbreviation, " done.")
 
 def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
@@ -44,7 +44,7 @@ def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
                         ,"DistrictName"
                         ,"../bigData/Census/" + stateAbbreviation + "_2022_sldu.csv"
                         )
-    doAggregation(acs2018, aggTo)
+    doAggregation(acs2020, aggTo)
     print("done")
     if not(stateAbbreviation in upperOnly):
         print("Lower")
@@ -55,7 +55,7 @@ def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
                         ,"DistrictName"
                         ,"../bigData/Census/" + stateAbbreviation + "_2022_sldl.csv"
                         )
-        doAggregation(acs2018, aggTo)
+        doAggregation(acs2020, aggTo)
         print("done")
 
 
@@ -207,14 +207,14 @@ cd116GA = AggregateTo(37
                       ,"input_data/CongressionalDistricts/DRA-cd116/GA.geojson"
                       , 'NAME'
                       , 'DistrictNumber'
-                      , "output_data/US_2018_cd116/GA_DRA.csv")
+                      , "../bigData/Census/GA_DRA.csv")
 
 cd116 = AggregateTo("STATEFP"
                     ,"Congressional"
-                    ,"input_data/CongressionalDistricts/cd116/tl_2018_us_cd116.shp"
+                    ,"input_data/CongressionalDistricts/cd116/tl_2021_us_cd116.shp"
                     , 'CD116FP'
                     , 'DistrictNumber'
-                    , "output_data/US_2018_cd116/cd116Raw.csv")
+                    , "../bigData/Census/cd116Raw.csv")
 
 cd115 = AggregateTo("STATEFP"
                     ,"Congressional"
@@ -382,4 +382,6 @@ sldStatesAndFIPS.pop("DC")
 list(map(lambda t:aggSLD(t[0], t[1],si.sldUpperOnly), sldStatesAndFIPS.items()))
 
 # this one requires a separate run since it's for extant districts
-doAggregation(acs2018,cd116NC)
+doAggregation(acs2020,cd116)
+doAggregation(acs2020,cd116NC)
+doAggregation(acs2020,cd116GA)
