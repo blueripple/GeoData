@@ -60,7 +60,7 @@ def loadStatesInfo(fp="../data-sets/data/dictionaries/states.csv"):
     sldUO_df = states_df[states_df["SLDUpperOnly"] == True]["StateAbbreviation"]
     sldUpperOnly = set(sldUO_df)
 #    print(sldUpperOnly)
-    noMaps = set(["FL","LA","MO","NH","OH"])
+    noMaps = set([])
     return StatesInfo(fipsFromAbbr, oneDistrict, sldUpperOnly, noMaps)
 
 
@@ -74,8 +74,8 @@ def resultIsOlderOrMissing(resultFP, inputFPs):
     else:
         return True
 
-acs2020 = ACSData(["input_data/NHGIS/US_2020_tract_csv/nhgis0034_ds249_20205_tract_E.csv"
-                   , "input_data/NHGIS/US_2020_tract_csv/nhgis0034_ds250_20205_tract_E.csv"]
+acs2020 = ACSData(["input_data/NHGIS/US_2020_tract_csv/nhgis0038_ds249_20205_tract_E.csv"
+                   , "input_data/NHGIS/US_2020_tract_csv/nhgis0038_ds250_20205_tract_E.csv"]
                   , "input_data/NHGIS/US_2020_tract_shapefile/US_tract_2020.shp"
                   , "nlcd_2016.tif"
                   , 'AMPVE001'
