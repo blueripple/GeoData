@@ -1,0 +1,6 @@
+0. Create DB with postgis extension (CREATE EXTENSION postgis;)
+1. Create DB connection in QGIS (PostgreSQL in left browser)
+2. load shapefile (create vector layer or double-click)
+3. Change to supported CRS (Toolbox -> Vector General -> Reproject)
+4. Fix shapes (Toolbox -> Vector Geometry -> Fix Shapes)
+5. Export (Toolbox -> Database -> PostGIS)

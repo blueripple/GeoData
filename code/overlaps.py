@@ -78,18 +78,18 @@ def populationOverlaps(acsData, nsComponents, nsToDecompose, outCSV, joinCol='GI
 def stateOverlaps(stateAbbreviation, stateFIPS, upperOnly):
     print ("computing overlaps for " + stateAbbreviation)
     print ("Upper (or only)")
-    congressionalFP =  "input_data/CongressionalDistricts/cd117/" + stateAbbreviation + ".geojson"
+    congressionalFP =  "input_data/CongressionalDistricts/cd2024/" + stateAbbreviation + ".geojson"
     congressionalNS =  NamedShapes(stateFIPS, congressionalFP, "NAME")
-    upperFP = "input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldu.geojson"
-    lowerFP = "input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldl.geojson"
+    upperFP = "input_data/StateLegDistricts/2024/" + stateAbbreviation + "_sldu.geojson"
+    lowerFP = "input_data/StateLegDistricts/2024/" + stateAbbreviation + "_sldl.geojson"
     upperNS = NamedShapes(stateFIPS, upperFP, "NAME")
-    upperResult =  "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDU_CD.csv"
-    lowerResult =  "../research/data/districtOverlaps/" + stateAbbreviation + "_SLDL_CD.csv"
-    populationOverlaps(acs2020, congressionalNS, upperNS, upperResult)
+    upperResult =  "../research/data/districtOverlaps/2024/" + stateAbbreviation + "_SLDU_CD.csv"
+    lowerResult =  "../research/data/districtOverlaps/2024/" + stateAbbreviation + "_SLDL_CD.csv"
+    populationOverlaps(acs2022, congressionalNS, upperNS, upperResult)
     if not(stateAbbreviation in upperOnly):
         print ("Lower")
         lowerNS = NamedShapes(stateFIPS, lowerFP, "NAME")
-        populationOverlaps(acs2020, congressionalNS, lowerNS, lowerResult)
+        populationOverlaps(acs2021, congressionalNS, lowerNS, lowerResult)
     else:
         print ("No lower districts.")
     print(stateAbbreviation + " done!")
@@ -107,7 +107,8 @@ def oldCDOverlaps(stateAbbreviation, stateFIPS):
 si = loadStatesInfo()
 cdStatesAndFIPS = cdStatesAndFIPS = si.fipsFromAbbr.copy()
 [cdStatesAndFIPS.pop(key) for key in (si.noMaps.copy().union(si.oneDistrict))]
-list(map(lambda t:oldCDOverlaps(t[0], t[1]), cdStatesAndFIPS.items()))
+#[cdStatesAndFIPS.pop(key) for key in (si.noMaps.copy())]
+#list(map(lambda t:oldCDOverlaps(t[0], t[1]), cdStatesAndFIPS.items()))
 list(map(lambda t:stateOverlaps(t[0], t[1],si.sldUpperOnly), cdStatesAndFIPS.items()))
 
 

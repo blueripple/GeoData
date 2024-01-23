@@ -48,6 +48,9 @@ class StatesInfo:
         self.sldUpperOnly = sldUpperOnly
         self.noMaps = noMaps
 
+def geopandaToStatsCSV(gp, csvFile):
+    x = gp.drop(columns=["id","color","opacity","geometry"])
+    x.to_csv(csvFile,index=False)
 
 def loadStatesInfo(fp="../data-sets/data/dictionaries/states.csv"):
     statesAnd_df = pandas.read_csv(fp,encoding='latin-1')
@@ -74,15 +77,30 @@ def resultIsOlderOrMissing(resultFP, inputFPs):
     else:
         return True
 
-acs2020 = ACSData(["input_data/NHGIS/US_2020_tract_csv/nhgis0038_ds249_20205_tract_E.csv"
-                   , "input_data/NHGIS/US_2020_tract_csv/nhgis0038_ds250_20205_tract_E.csv"]
-                  , "input_data/NHGIS/US_2020_tract_shapefile/US_tract_2020.shp"
-                  , "nlcd_2016.tif"
-                  , 'AMPVE001'
-                  , 'AMTCE001'
+acs2022 = ACSData(["input_data/NHGIS/US_2022_tract_csv/nhgis0042_ds262_20225_tract_E.csv"
+                   , "input_data/NHGIS/US_2022_tract_csv/nhgis0042_ds263_20225_tract_E.csv"]
+                  , "input_data/NHGIS/US_2022_tract_shapefile/US_tract_2022.shp"
+                  , "nlcd_2021.tif"
+                  , 'AQNFE001'
+                  , 'AQRAE001'
                   )
 
 
+acs2021 = ACSData(["input_data/NHGIS/US_2021_tract_csv/nhgis0040_ds254_20215_tract_E.csv"
+                   , "input_data/NHGIS/US_2021_tract_csv/nhgis0040_ds255_20215_tract_E.csv"]
+                  , "input_data/NHGIS/US_2021_tract_shapefile/US_tract_2021.shp"
+                  , "nlcd_2021.tif"
+                  , 'AON4E001'
+                  , 'AORME001'
+                  )
+
+acs2020 = ACSData(["input_data/NHGIS/US_2020_tract_csv/nhgis0038_ds249_20205_tract_E.csv"
+                   , "input_data/NHGIS/US_2020_tract_csv/nhgis0038_ds250_20205_tract_E.csv"]
+                  , "input_data/NHGIS/US_2020_tract_shapefile/US_tract_2020.shp"
+                  , "nlcd_2019.tif"
+                  , 'AMPVE001'
+                  , 'AMTCE001'
+                  )
 
 acs2018 = ACSData(["input_data/NHGIS/US_2018_tract_csv/nhgis0027_ds240_20185_2018_tract_E.csv"
                    , "input_data/NHGIS/US_2018_tract_csv/nhgis0022_ds239_20185_2018_tract_E.csv"]

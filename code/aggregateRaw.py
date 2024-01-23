@@ -13,24 +13,26 @@ geopandas.options.use_pygeos = True
 # Comes in 2 sets so code below can merge those
 class AggregateTo:
     """Container For Fields required to Aggregate ACS block-group data geographically"""
-    def __init__(self, stateFP, districtType, aggToShpFile, aggToCol, distCol, outCSV):
+    def __init__(self, stateFP, districtType, aggToShpFile, aggToCol, distCol, outCSV, outStats):
         self.stateFP = stateFP # col name for state FIPS or integer value of state FIPS for a single state input
         self.districtType = districtType
         self.aggToShpFile = aggToShpFile
         self.aggToCol = aggToCol # Column Name for the district number ?
         self.distCol = distCol #output column name for district number ?
         self.outCSV = outCSV
+        self.outStats = outStats
 
-def aggDRCongressional(stateAbbreviation, stateFIPS):
+def aggCongressional(stateAbbreviation, stateFIPS):
     print("Building district demographics for ", stateAbbreviation, " congressional districts.")
     aggTo = AggregateTo(stateFIPS
                         ,"Congressional"
-                        ,"input_data/CongressionalDistricts/cd117/" + stateAbbreviation + ".geojson"
+                        ,"input_data/CongressionalDistricts/cd2024/" + stateAbbreviation + ".geojson"
                         ,"NAME"
                         ,"DistrictName"
-                        ,"../bigData/Census/cd117_" + stateAbbreviation + ".csv"
+                        ,"../bigData/Census/cd2024_ACS2022/" + stateAbbreviation + ".csv"
+                        ,"../research/data/districtStats/2024/" + stateAbbreviation + "_congressional.csv"
                         )
-    doAggregation(acs2020, aggTo, stateFIPS)
+    doAggregation(acs2022, aggTo, stateFIPS)
     print(stateAbbreviation, " done.")
 
 def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
@@ -38,203 +40,28 @@ def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
     print("Upper")
     aggTo = AggregateTo(stateFIPS
                         ,"StateUpper"
-                        ,"input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldu.geojson"
+                        ,"input_data/StateLegDistricts/2024/" + stateAbbreviation + "_sldu.geojson"
                         ,"NAME"
                         ,"DistrictName"
-                        ,"../bigData/Census/" + stateAbbreviation + "_2022_sldu.csv"
+                        ,"../bigData/Census/sldu2024_ACS2022/" + stateAbbreviation + ".csv"
+                        ,"../research/data/districtStats/2024/" + stateAbbreviation + "_sldu.csv"
+
                         )
-    doAggregation(acs2020, aggTo, stateFIPS)
+    doAggregation(acs2022, aggTo, stateFIPS)
     print("done")
     if not(stateAbbreviation in upperOnly):
         print("Lower")
         aggTo = AggregateTo(stateFIPS
                         ,"StateLower"
-                        ,"input_data/StateLegDistricts/" + stateAbbreviation + "/" + stateAbbreviation + "_2022_sldl.geojson"
+                        ,"input_data/StateLegDistricts/2024/" + stateAbbreviation + "_sldl.geojson"
                         ,"NAME"
                         ,"DistrictName"
-                        ,"../bigData/Census/" + stateAbbreviation + "_2022_sldl.csv"
+                        ,"../bigData/Census/sldl2024_ACS2022/" + stateAbbreviation + ".csv"
+                        ,"../research/data/districtStats/2024/" + stateAbbreviation + "_sldl.csv"
                         )
-        doAggregation(acs2020, aggTo, stateFIPS)
+        doAggregation(acs2022, aggTo, stateFIPS)
         print("done")
 
-
-ncLower = AggregateTo(37
-                      ,"StateLower"
-                      ,"input_data/StateLegDistricts/NC/Lower.geojson"
-                      ,"NAME"
-                      ,"DistrictNumber"
-                      ,"output_data/StateLegDistricts/nc_2022_sldl.csv")
-
-ncUpper = AggregateTo(37
-                      ,"StateUpper"
-                      ,"input_data/StateLegDistricts/NC/Upper.geojson"
-                      ,"NAME"
-                      ,"DistrictNumber"
-                      ,"output_data/StateLegDistricts/nc_2022_sldu.csv")
-
-
-
-ncProposed = AggregateTo(37
-                         ,"Congressional"
-                         ,"input_data/CongressionalDistricts/cd117/NC.geojson"
-                         ,"NAME"
-                         ,"DistrictNumber"
-                         ,"output_data/US_2020_cd117P/cd117_NC.csv")
-
-azCongressional = AggregateTo(4
-                              ,"Congressional"
-                              ,"input_data/CongressionalDistricts/cd117/AZ.geojson"
-                              ,"NAME"
-                              ,"DistrictNumber"
-                              ,"output_data/US_2020_cd117P/cd117_AZ.csv")
-
-azSLD = AggregateTo(4
-                    ,"StateUpper"
-                    ,"input_data/StateLegDistricts/AZ/slds_2022.geojson"
-                    ,"NAME"
-                    ,"DistrictNumber"
-                    ,"output_data/StateLegDistricts/az_sld.csv")
-
-txProposed = AggregateTo(48
-                         ,"Congressional"
-                         ,"input_data/CongressionalDistricts/cd117/TX-proposed.geojson"
-                         ,"NAME"
-                         ,"DistrictNumber"
-                         ,"output_data/US_2020_cd117P/cd117_TX.csv")
-
-vaLower = AggregateTo("STATEFP"
-                      , "StateLower"
-                      , "input_data/StateLegDistricts/VA/tl_2020_51_sldl20/tl_2017_51_sldl.shp"
-                      , 'SLDLST'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/va_2018_sldl.csv")
-
-vaUpper = AggregateTo("STATEFP20"
-                      , "StateUpper"
-                      , "input_data/StateLegDistricts/VA/tl_2020_51_sldu20/tl_2020_51_sldu20.shp"
-                      , 'SLDUST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/va_2020_sldu.csv")
-
-txLower = AggregateTo("STATEFP20"
-                      , "StateLower"
-                      , "input_data/StateLegDistricts/TX/tl_2020_48_sldl20/tl_2020_48_sldl20.shp"
-                      , 'SLDLST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/tx_2020_sldl.csv")
-
-
-txUpper = AggregateTo("STATEFP20"
-                      , "StateUpper"
-                      , "input_data/StateLegDistricts/TX/tl_2020_48_sldu20/tl_2020_48_sldu20.shp"
-                      , 'SLDUST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/tx_2020_sldu.csv")
-
-
-gaLower = AggregateTo("STATEFP20"
-                      , "StateLower"
-                      , "input_data/StateLegDistricts/GA/tl_2020_13_sldl20/tl_2020_13_sldl20.shp"
-                      , 'SLDLST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/ga_2020_sldl.csv")
-
-
-gaUpper = AggregateTo("STATEFP20"
-                      , "StateUpper"
-                      , "input_data/StateLegDistricts/GA/tl_2020_13_sldu20/tl_2020_13_sldu20.shp"
-                      , 'SLDUST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/ga_2020_sldu.csv")
-
-azLower = AggregateTo("STATEFP20"
-                      , "StateLower"
-                      , "input_data/StateLegDistricts/AZ/tl_2020_04_sldl20/tl_2020_04_sldl20.shp"
-                      , 'SLDLST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/az_2020_sldl.csv")
-
-
-azUpper = AggregateTo("STATEFP20"
-                      , "StateUpper"
-                      , "input_data/StateLegDistricts/AZ/tl_2020_04_sldu20/tl_2020_04_sldu20.shp"
-                      , 'SLDUST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/az_2020_sldu.csv")
-
-
-nvLower = AggregateTo("STATEFP20"
-                      , "StateLower"
-                      , "input_data/StateLegDistricts/NV/tl_2020_32_sldl20/tl_2020_32_sldl20.shp"
-                      , 'SLDLST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/nv_2020_sldl.csv")
-
-
-nvUpper = AggregateTo("STATEFP20"
-                      , "StateUpper"
-                      , "input_data/StateLegDistricts/NV/tl_2020_32_sldu20/tl_2020_32_sldu20.shp"
-                      , 'SLDUST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/nv_2020_sldu.csv")
-
-
-ohLower = AggregateTo("STATEFP20"
-                      , "StateLower"
-                      , "input_data/StateLegDistricts/OH/tl_2020_39_sldl20/tl_2020_39_sldl20.shp"
-                      , 'SLDLST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/oh_2020_sldl.csv")
-
-
-ohUpper = AggregateTo("STATEFP20"
-                      , "StateUpper"
-                      , "input_data/StateLegDistricts/OH/tl_2020_39_sldu20/tl_2020_39_sldu20.shp"
-                      , 'SLDUST20'
-                      , 'DistrictNumber'
-                      , "output_data/StateLegDistricts/oh_2020_sldu.csv")
-
-cd116NC = AggregateTo(37
-                      ,"Congressional"
-                      ,"input_data/CongressionalDistricts/DRA-cd116/NC.geojson"
-                      , 'NAME'
-                      , 'DistrictName'
-                      , "../bigData/Census/NC_DRA.csv")
-
-cd116GA = AggregateTo(37
-                      ,"Congressional"
-                      ,"input_data/CongressionalDistricts/DRA-cd116/GA.geojson"
-                      , 'NAME'
-                      , 'DistrictNumber'
-                      , "../bigData/Census/GA_DRA.csv")
-
-cd116 = AggregateTo("STATEFP"
-                    ,"Congressional"
-                    ,"input_data/CongressionalDistricts/cd116/tl_2021_us_cd116.shp"
-                    , 'CD116FP'
-                    , 'DistrictNumber'
-                    , "../bigData/Census/cd116Raw.csv")
-
-cd115 = AggregateTo("STATEFP"
-                    ,"Congressional"
-                    ,"input_data/CongressionalDistricts/cd115/tl_2016_us_cd115.shp"
-                    , 'CD115FP'
-                    , 'DistrictNumber'
-                    , "output_data/US_2016_cd115/cd115Raw.csv")
-
-cd114 = AggregateTo("STATEFP"
-                    ,"Congressional"
-                    ,"input_data/CongressionalDistricts/cd114/tl_2014_us_cd114.shp"
-                    , 'CD114FP'
-                    , 'DistrictNumber'
-                    , "output_data/US_2014_cd114/cd114Raw.csv")
-
-cd113 = AggregateTo("STATEFP"
-                    ,"Congressional"
-                    ,"input_data/CongressionalDistricts/cd113/tl_2013_us_cd113.shp" # this is weird, the 2013 bit
-                    , 'CD113FP'
-                    , 'DistrictNumber'
-                    , "output_data/US_2012_cd113/cd113Raw.csv")
 
 
 extraIntCols =['TotalPopulation']
@@ -373,11 +200,17 @@ def doAggregation(acsData, aggTo, stateFIPS=''):
     else:
         print(aggTo.outCSV + " exists and is current with inputs.  Skipping.")
 
+    if resultIsOlderOrMissing(aggTo.outStats,[aggTo.aggToShpFile]):
+        print(aggTo.outStats + " is missing or out of date. Extracting from map...")
+        gp = geopandas.read_file(aggTo.aggToShpFile)
+        geopandaToStatsCSV(gp, aggTo.outStats)
+    else:
+        print(aggTo.outStats + " exists and is current with input map. Leaving in place.")
 si = loadStatesInfo()
 
 cdStatesAndFIPS = si.fipsFromAbbr.copy()
 [cdStatesAndFIPS.pop(key) for key in si.oneDistrict.copy().union(si.noMaps)]
-list(map(lambda t:aggDRCongressional(t[0], t[1]), cdStatesAndFIPS.items()))
+list(map(lambda t:aggCongressional(t[0], t[1]), cdStatesAndFIPS.items()))
 
 sldStatesAndFIPS = si.fipsFromAbbr.copy()
 [sldStatesAndFIPS.pop(key) for key in si.noMaps]
@@ -385,6 +218,6 @@ sldStatesAndFIPS.pop("DC")
 list(map(lambda t:aggSLD(t[0], t[1],si.sldUpperOnly), sldStatesAndFIPS.items()))
 
 # this one requires a separate run since it's for extant districts
-doAggregation(acs2020,cd116)
-doAggregation(acs2020,cd116NC)
-doAggregation(acs2020,cd116GA)
+#doAggregation(acs2020,cd116)
+#doAggregation(acs2020,cd116NC)
+#doAggregation(acs2020,cd116GA)
