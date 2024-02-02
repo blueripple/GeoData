@@ -33,12 +33,10 @@ def create_data_view(tbl_name):
                         table = sql.Literal(tbl_name)
                         ))
     cols = list(map(lambda x: inTuple(0,x),cur.fetchall()))
-    #    print(cols)
 
     if (set(cols).intersection(set_dcc) != set_dcc):
         raise Exception("Data table " + tbl_name + " does not have all common cols!")
     data_cols = [c for c in cols if data_col_pat.match(c)]
-#    print("data_cols=", data_cols)
     view_cols = data_common_cols + data_cols
     view_name = tbl_name + "_v"
     view_sql = sql.SQL("CREATE OR REPLACE TEMP VIEW {view} AS SELECT {cols} FROM {table}").format(view = sql.Identifier(view_name),
@@ -52,7 +50,6 @@ view_info = list(map(create_data_view, data_tables))
 numbered_view_info = zip([1, 2], view_info)
 view_names = map(lambda x: inTuple(0, inTuple(1, x)), numbered_view_info)
 view_cols = map(lambda x: inTuple(1, inTuple(1, x)), numbered_view_info)
-#print(list(view_cols))
 
 def left_join(vi):
     view_number = inTuple(0, vi)
@@ -69,19 +66,33 @@ def join_columns(vi):
     view_name = inTuple(0, inTuple(1, vi))
     view_data_cols = inTuple(1, inTuple(1, vi))
     table_alias = "v" + str(view_number)
-#    vdc = map(lambda x: add_table_alias("v" + str(view_number), x), view_data_cols)
     return sql.SQL(', ').join(map(lambda x: sql.Identifier(table_alias, x),view_data_cols))
 
+join_result_table = "tract_join_test"
 
+join_sql = sql.SQL('''
+CREATE TABLE {nt}
+AS SELECT {shape_cols}, {joined_cols}
+FROM {shapes} t {joins})
+''').format(nt = sql.Identifier(join_result_table),
+            shapes = sql.Identifier(shape_table),
+            shape_cols = sql.SQL(', ').join(map(lambda x: sql.Identifier("t",x), shape_cols)),
+            joined_cols = sql.SQL(', ').join(map(join_columns, zip([1,2], view_info))),
+            joins = sql.SQL(' ').join(map(left_join, zip([1,2], view_info))))
 
-#a_shape_cols = map(lambda x: add_table_alias("t", x), shape_cols)
-#    joins = sql.SQL(' ').join(map(one_join, view_name))
-join_sql = sql.SQL("CREATE TABLE {nt} AS SELECT {shape_cols}, {joined_cols} FROM {shapes} t {joins}").format(nt = sql.Identifier("tract_join_test"),
-                                                                                                             shapes = sql.Identifier(shape_table),
-                                                                                                             shape_cols = sql.SQL(', ').join(map(lambda x: sql.Identifier("t",x), shape_cols)),
-                                                                                                             joined_cols = sql.SQL(', ').join(map(join_columns, zip([1,2], view_info))),
-                                                                                                             joins = sql.SQL(' ').join(map(left_join, zip([1,2], view_info))))
 print(join_sql.as_string(conn))
 cur.execute(join_sql)
+
+add_index_sql = sql.SQL('''
+CREATE INDEX {idx_name}
+ ON {table_name}
+ USING GIST ({geom_col})
+''').format(idx_name = sql.Identifier(join_result_table + "_geom_idx"),
+            table_name = sql.Identifier(join_result_table),
+            geom_col = sql.Identifier("geom")
+            )
+print(add_index_sql.as_string(conn))
+cur.execute(add_index_sql)
+
 conn.commit()
 conn.close()
