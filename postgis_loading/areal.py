@@ -2,6 +2,7 @@ import psycopg2
 from psycopg2 import sql
 import re
 import itertools
+import pandas
 
 dbname = "tract_test"
 schema_name = "public"
@@ -26,54 +27,86 @@ def tupleAt(n,t):
 
 tract_pop_col = "AMPVE001"
 
-
-tract_wgt_params = {
+table_params = {
     "outer_geom_table": "ny_sldu",
     "outer_id_col": "id_0",
     "outer_geom_col": "geom",
-    "tract_geom_table": "tract_join_test",
-    "tract_id_col": "geoid",
-    "tract_geom_col": "geom",
+    "data_geom_table": "tract_join_test",
+    "data_geom_id_col": "geoid",
+    "data_geom_col": "geom",
     "lc_rast_table": "nlcd_us",
     "lc_rast_col": "rast"
 }
 
-tract_wgt_tbl_sql = sql.SQL('''
-select "outer_id", "tract_id", "area_wgt",
-	case
-		when sum("dev_in_tract") > 0
-		then sum("dev_in_both")::float / sum("dev_in_tract")
-		else 0
-	end as "rast_wgt"
-from (
-select "outer".{outer_id_col} as "outer_id",
-       "tract".{tract_id_col} as "tract_id",
-	   ST_area(ST_intersection("tract".{tract_geom_col}, "outer".{outer_geom_col}))/ST_area("tract".{tract_geom_col}) as "area_wgt",
-	   ST_CLIP("lc".rast, "tract".{tract_geom_col}, true) as "crast",
-	   coalesce(ST_valuecount(ST_reclass(ST_CLIP(ST_CLIP("lc"."rast", "tract".{tract_geom_col}, true), "outer".{outer_geom_col}, true),'[20-29]:1','1BB'),1,true,1), 0) as "dev_in_both",
-	   ST_valuecount(ST_reclass(ST_CLIP("lc"."rast", "tract".{tract_geom_col}, true),'[20-29]:1','1BB'),1,true,1) as "dev_in_tract"
-from {tract_geom_table} "tract"
-inner join {outer_geom_table} "outer"
-on ST_intersects("tract".{tract_geom_col},"outer".{outer_geom_col})
-inner join (
-	select {lc_rast_col} as rast
-	from {lc_rast_table}
-) "lc"
-on ST_intersects("tract".{tract_geom_col}, "lc"."rast")
-)
-group by "outer_id", "tract_id", "area_wgt"
-''').format(outer_geom_table = sql.Identifier(tract_wgt_params["outer_geom_table"]),
-            outer_id_col = sql.Identifier(tract_wgt_params["outer_id_col"]),
-            outer_geom_col = sql.Identifier(tract_wgt_params["outer_geom_col"]),
-            tract_geom_table = sql.Identifier(tract_wgt_params["tract_geom_table"]),
-            tract_id_col = sql.Identifier(tract_wgt_params["tract_id_col"]),
-            tract_geom_col = sql.Identifier(tract_wgt_params["outer_geom_col"]),
-            lc_rast_table = sql.Identifier(tract_wgt_params["lc_rast_table"]),
-            lc_rast_col = sql.Identifier(tract_wgt_params["lc_rast_col"]),
-            )
+data_col_params = {
+    "data_geom_schema": "public",
+    "pop_col": "AMPVE001",
+    "intensive_cols": ["AMTCE001"],
+    "extensive_col_pat": re.compile('AN[A-Z]+E\d\d\d')
+}
 
-print(tract_wgt_tbl_sql.as_string(conn))
-cur.execute(tract_wgt_tbl_sql)
+def inTuple(n,t):
+    x = t[n]
+    return x
+
+def extensive_cols(table_parameters, col_parameters, db_cursor):
+    print("Getting extensive cols for data_geom_table={}".format(table_parameters["data_geom_table"]))
+    db_cursor.execute(sql.SQL("SELECT column_name FROM information_schema.columns WHERE table_schema = {data_geom_schema} AND table_name = {data_geom_table}")
+                      .format(data_geom_schema = sql.Literal(col_parameters["data_geom_schema"]),
+                              data_geom_table = sql.Literal(table_parameters["data_geom_table"])
+                              )
+                      )
+    cols = list(map(lambda x: inTuple(0,x),cur.fetchall()))
+    data_cols = [c for c in cols if col_parameters["extensive_col_pat"].match(c)]
+    return data_cols
+
+def data_and_wgt_tbl_sql(table_parameters, data_col_parameters, db_cursor):
+    parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), table_parameters.items()))
+    ext_cols = extensive_cols(table_parameters, data_col_parameters, db_cursor)
+    wgt_sql = sql.Identifier("rast_wgt")
+    pop_sql = sql.Identifier(data_col_parameters["pop_col"])
+    parms["extensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({} * {})').format(wgt_sql,sql.Identifier(x)), data_col_parameters["intensive_cols"]))
+    parms["pop_col_sum"] = sql.SQL('sum({} * {})').format(wgt_sql, pop_sql)
+    parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), ext_cols))
+    sql_str = sql.SQL('''
+select "outer_id", sum("dev_area_m2"), {pop_col_sum}, {intensive_col_sums}, {extensive_col_sums}
+from {data_geom_table} "dg"
+inner join (
+      select "outer_id", "data_geom_id", "area_wgt",
+           case
+		when sum("dev_in_data_geom") > 0
+		then sum("dev_in_both")::float / sum("dev_in_data_geom")
+		else 0
+	   end as "rast_wgt",
+           sum("dev_area_m2") as "dev_area_m2"
+      from (
+        select "outer".{outer_id_col} as "outer_id",
+               "data_geom".{data_geom_id_col} as "data_geom_id",
+  	       ST_area(ST_intersection("data_geom".{data_geom_col}, "outer".{outer_geom_col}))/ST_area("data_geom".{data_geom_col}) as "area_wgt",
+	       ST_CLIP("lc".rast, "data_geom".{data_geom_col}, true) as "crast",
+	       coalesce(ST_valuecount(ST_reclass(ST_CLIP(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),'[20-29]:1','1BB'),1,true,1), 0)   as "dev_in_both",
+  	       ST_valuecount(ST_reclass(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true),'[20-29]:1','1BB'),1,true,1) as "dev_in_data_geom",
+               ST_Area(ST_ConvexHull(ST_reclass(ST_CLIP(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),'[20-29]:1','1BB'))) as "dev_area_m2"
+      from {data_geom_table} "data_geom"
+      inner join {outer_geom_table} "outer"
+      on ST_intersects("data_geom".{data_geom_col},"outer".{outer_geom_col})
+      inner join (
+        select {lc_rast_col} as rast
+	from {lc_rast_table}
+      ) "lc"
+      on ST_intersects("data_geom".{data_geom_col}, "lc"."rast")
+      )
+      group by "outer_id", "data_geom_id", "area_wgt"
+    ) "dg_and_wgt"
+on "dg".{data_geom_id_col} = "dg_and_wgt"."data_geom_id"
+group by "outer_id"
+''').format(**parms)
+    return sql_str
+
+
+qsql = data_and_wgt_tbl_sql(table_params, data_col_params, cur)
+print(qsql.as_string(conn))
+cur.execute(qsql)
 print(cur.fetchall())
 
 exit(0)
