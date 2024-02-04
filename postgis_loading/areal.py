@@ -65,11 +65,11 @@ def data_and_wgt_tbl_sql(table_parameters, data_col_parameters, db_cursor):
     ext_cols = extensive_cols(table_parameters, data_col_parameters, db_cursor)
     wgt_sql = sql.Identifier("rast_wgt")
     pop_sql = sql.Identifier(data_col_parameters["pop_col"])
-    parms["extensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({} * {})').format(wgt_sql,sql.Identifier(x)), data_col_parameters["intensive_cols"]))
+    parms["extensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({} * {})').format(wgt_sql,sql.Identifier(x)), ext_cols))
     parms["pop_col_sum"] = sql.SQL('sum({} * {})').format(wgt_sql, pop_sql)
-    parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), ext_cols))
+    parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), data_col_parameters["intensive_cols"]))
     sql_str = sql.SQL('''
-select "outer_id", sum("dev_area_m2"), {pop_col_sum}, {intensive_col_sums}, {extensive_col_sums}
+select "outer_id", sum("dev_area_m2"), sum("rast_area_m2"), sum("overlap_area_m2"), {pop_col_sum}, {intensive_col_sums}, {extensive_col_sums}
 from {data_geom_table} "dg"
 inner join (
       select "outer_id", "data_geom_id", "area_wgt",
@@ -78,15 +78,19 @@ inner join (
 		then sum("dev_in_both")::float / sum("dev_in_data_geom")
 		else 0
 	   end as "rast_wgt",
-           sum("dev_area_m2") as "dev_area_m2"
+           sum("dev_area_m2") as "dev_area_m2",
+           sum("rast_area_m2") as "rast_area_m2",
+           sum("overlap_area_m2") as "overlap_area_m2"
       from (
         select "outer".{outer_id_col} as "outer_id",
                "data_geom".{data_geom_id_col} as "data_geom_id",
+  	       ST_area(ST_intersection("data_geom".{data_geom_col}, "outer".{outer_geom_col}) :: geography) as "overlap_area_m2",
   	       ST_area(ST_intersection("data_geom".{data_geom_col}, "outer".{outer_geom_col}))/ST_area("data_geom".{data_geom_col}) as "area_wgt",
 	       ST_CLIP("lc".rast, "data_geom".{data_geom_col}, true) as "crast",
 	       coalesce(ST_valuecount(ST_reclass(ST_CLIP(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),'[20-29]:1','1BB'),1,true,1), 0)   as "dev_in_both",
   	       ST_valuecount(ST_reclass(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true),'[20-29]:1','1BB'),1,true,1) as "dev_in_data_geom",
-               ST_Area(ST_ConvexHull(ST_reclass(ST_CLIP(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),'[20-29]:1','1BB'))) as "dev_area_m2"
+               ST_Area(ST_Polygon(ST_reclass(ST_CLIP(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),'[20-29]:1','1BB')) :: geography) as "dev_area_m2",
+               ST_Area(ST_ConvexHull(ST_clip(ST_clip("lc"."rast", "data_geom".{data_geom_col},true), "outer".{outer_geom_col}, true)) :: geography) as "rast_area_m2"
       from {data_geom_table} "data_geom"
       inner join {outer_geom_table} "outer"
       on ST_intersects("data_geom".{data_geom_col},"outer".{outer_geom_col})
