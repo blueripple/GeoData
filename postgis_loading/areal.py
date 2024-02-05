@@ -2,9 +2,12 @@ import psycopg2
 from psycopg2 import sql
 import re
 import itertools
-import pandas
+import pandas as pd
+import subprocess
 
 dbname = "tract_test"
+db_user = "postgres"
+db_password = "postgres"
 schema_name = "public"
 tract_table = "tract_join_test"
 tract_geom_col = "geom"
@@ -17,7 +20,7 @@ rast_table = "nlcd_us"
 data_col_pat = re.compile('[A-Z]+E\d\d\d')
 
 conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
-cur = conn.cursor()
+#cur = conn.cursor()
 #cur.execute("CREATE EXTENSION postgis")
 
 # compute areas of overlap for all census tracts in a SLD
@@ -31,10 +34,11 @@ table_params = {
     "outer_geom_table": "ny_sldu",
     "outer_id_col": "id_0",
     "outer_geom_col": "geom",
+    "outer_name_col": "name",
     "data_geom_table": "tract_join_test",
     "data_geom_id_col": "geoid",
     "data_geom_col": "geom",
-    "lc_rast_table": "nlcd_us",
+    "lc_rast_table": "nlcd_us_dev",
     "lc_rast_col": "rast"
 }
 
@@ -56,11 +60,140 @@ def extensive_cols(table_parameters, col_parameters, db_cursor):
                               data_geom_table = sql.Literal(table_parameters["data_geom_table"])
                               )
                       )
-    cols = list(map(lambda x: inTuple(0,x),cur.fetchall()))
+    cols = list(map(lambda x: inTuple(0,x),db_cursor.fetchall()))
     data_cols = [c for c in cols if col_parameters["extensive_col_pat"].match(c)]
     return data_cols
 
-def data_and_wgt_tbl_sql(table_parameters, data_col_parameters, db_cursor):
+def dasymmetric_interpolation_sql(table_parameters, data_col_parameters, db_cursor):
+    parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), table_parameters.items()))
+    ext_cols = extensive_cols(table_parameters, data_col_parameters, db_cursor)
+    wgt_sql = sql.Identifier("rast_wgt")
+    dev_area_sql = sql.Identifier("dev_area_m2")
+    area_sql = sql.Identifier("overlap_area_m2")
+    pop_sql = sql.Identifier(data_col_parameters["pop_col"])
+    parms["extensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('round(sum({} * {}))').format(wgt_sql,sql.Identifier(x)), ext_cols))
+    parms["pop_col_sum"] = sql.SQL('sum({} * {})').format(wgt_sql, pop_sql)
+    parms["density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({area}) * 2.589988e6 as "ppl_per_mi2"').format(wgt = wgt_sql, pop = pop_sql, area = area_sql)
+    parms["dev_density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({dev_area}) * 2.589988e6 as "ppl_per_dev_mi2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
+    parms["PW_density_sum"] = sql.SQL('sum({wgt} * {pop} * {wgt} * {pop} / {area})/sum({wgt} * {pop}) * 2.589988e6 as "pw_ppl_per_mi2"').format(wgt = wgt_sql, pop = pop_sql, area = area_sql)
+    parms["PW_dev_density_sum"] = sql.SQL('sum({wgt} * {pop} * {wgt} * {pop} / {dev_area})/sum({wgt} * {pop}) * 2.589988e6 as "pw_ppl_per_dev_mi2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
+
+    parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), data_col_parameters["intensive_cols"]))
+    sql_str = sql.SQL('''
+select "outer_id",
+       "outer_name",
+       {pop_col_sum},
+       {density_sum},
+       {dev_density_sum},
+       {PW_density_sum},
+       {PW_dev_density_sum},
+       sum("dev_area_m2") * 3.861022e-7 as "developed_area_mi2",
+       sum("overlap_area_m2") * 3.681022e-7 as "area_mi2",
+       {intensive_col_sums},
+       {extensive_col_sums}
+from {data_geom_table} "dg"
+inner join (
+      select "outer_id", "outer_name", "data_geom_id",
+           case
+		when sum("dev_in_data_geom") > 0
+		then sum("dev_in_both")::float / sum("dev_in_data_geom")
+		else 0
+	   end as "rast_wgt",
+           sum(ST_area(ST_Polygon("rast_in_both") :: geography)) as  "dev_area_m2",
+           ST_area("data_in_outer_geom")/ST_area("data_geom") as "area_wgt",
+           ST_area("data_in_outer_geom" :: geography) as "overlap_area_m2"
+      from (
+        select "outer".{outer_id_col} as "outer_id",
+               "outer".{outer_name_col} as "outer_name",
+               "outer".{outer_geom_col} as "outer_geom",
+               "data_geom".{data_geom_id_col} as "data_geom_id",
+               "data_geom".{data_geom_col} as "data_geom",
+               case
+                 when ST_WITHIN("data_geom".{data_geom_col}, "outer".{outer_geom_col})
+                 then "data_geom".{data_geom_col}
+                 else ST_INTERSECTION("data_geom".{data_geom_col}, "outer".{outer_geom_col})
+               end as "data_in_outer_geom",
+	       ST_CLIP(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true) as "rast_in_both",
+	       coalesce(ST_valuecount(ST_CLIP(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),1,true,1), 0)   as "dev_in_both",
+  	       ST_valuecount(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true),1,true,1) as "dev_in_data_geom"
+        from {data_geom_table} "data_geom"
+        inner join {outer_geom_table} "outer"
+        on ST_intersects("data_geom".{data_geom_col},"outer".{outer_geom_col})
+        inner join {lc_rast_table}
+        on ST_intersects("data_geom".{data_geom_col}, {lc_rast_table}."rast")
+      )
+      group by "outer_id", "outer_name", "outer_geom", "data_geom_id", "data_geom", "data_in_outer_geom"
+    ) "dg_and_wgt"
+on "dg".{data_geom_id_col} = "dg_and_wgt"."data_geom_id"
+group by "outer_id", "outer_name"
+''').format(**parms)
+    return sql_str
+
+def dasymmetric_interpolation(table_parameters, data_col_parameters, db_connection):
+    cur = db_connection.cursor()
+    sql = dasymmetric_interpolation_sql(table_parameters, data_col_parameters, cur)
+    ext_cols = extensive_cols(table_parameters, data_col_parameters, cur)
+    int_cols = data_col_parameters["intensive_cols"]
+    cols = ["ID","DistrictName","TotalPopulation","PopPerSqMile","PopPerDevSqMile","pwPopPerSqMile","pwPopPerDevSqMile","DevArea_m2","OverlapArea_m2"] + int_cols + ext_cols
+    print(sql.as_string(db_connection))
+    cur.execute(sql)
+    df = pd.DataFrame(cur.fetchall(),columns = cols)
+    col_type_dict = dict(map(lambda x: (x, int), ["TotalPopulation"] + ext_cols))
+    return df.astype(col_type_dict)
+
+dasymmetric_result = dasymmetric_interpolation(table_params, data_col_params, conn)
+print(dasymmetric_result.to_csv(header=True, index=False, float_format="%.2f"))
+
+exit(0)
+
+def transform_srid(table_name, geom_col, transformed_table_name, source_srid, target_srid, db_connection):
+    cur = db_connection.cursor()
+    cur.execute(sql.SQL("SELECT column_name FROM information_schema.columns WHERE table_schema = {schema} AND table_name = {table}").format(schema = schema_name,
+                                                                                                                                            table = table_name))
+    cols = list(map(lambda x: inTuple(0,x),db_cursor.fetchall()))
+    if not(geom_col in cols):
+        print("transform_srid: {} column is missing from table to be transformed. Exiting.".format(geom_col))
+        exit(1)
+    cols_no_geom = cols.remove(geom_col)
+    if (source_srid == target_srid):
+        print("transform_srid: srid's match. Doing nothing.")
+        return table_name
+
+    sql_str = sql.SQL('''
+DROP TABLE IF EXISTS {nt};
+CREATE TABLE {nt} as
+SELECT {ngc}, ST_Transform({gc},{ts}) as {gc}
+FROM {ot};
+CREATE INDEX {nti} ON {nt} USING GIST({gc});
+''').format(nt = sql.Identifier(transformed_table_name),
+            ngc = sql.SQL(', ').join(map(sql.Identifier, cols_no_geom)),
+            gc = sql.Identifier(geom_col),
+            ts = sql.Literal(target_srid),
+            nti = sql.Identifier(transformed_table_name + "_" + geom_col + "_idx")
+            )
+    print("transform_srid: transforming from {} to {}...".format(source_srid.as_string(),target_srid.as_string()))
+    cur.execute(sql_str)
+    db_connection.commit()
+    print("transform_srid: done!")
+    return transformed_table_name
+
+def dasymmetric_from_file(db_connection, state, chamber, filename, name_col="NAME", geom_col="geometry", srid=4326):
+    print("dasymmetric_from_file: loading shapes from {} to database...".format(filename))
+    cmd_uf = "shp2pgsql -D -I -s {srid_} {filename_} {table} | psql dbname={dbname_} user={db_user_} password={db_password_}"
+    cmd = cmd_uf.format(srid_ = srid.as_string(),
+                        filename_ = filename,
+                        table = "sld_shapes",
+                        dbname_ = dbname,
+                        db_user_ = db_user,
+                        dp_password_ = db_password)
+    subprocess.call(cmd, shell=True)
+    print("dasymmetric_from_file: done loading shapes from file.")
+    if (srid != 4326):
+        table_name = transform_srid("sld_shapes", geom_col, "sld_shapes_4326", srid, 4326, db_connection)
+
+
+
+def data_and_wgt_tbl_sql2(table_parameters, data_col_parameters, db_cursor):
     parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), table_parameters.items()))
     ext_cols = extensive_cols(table_parameters, data_col_parameters, db_cursor)
     wgt_sql = sql.Identifier("rast_wgt")
@@ -69,52 +202,28 @@ def data_and_wgt_tbl_sql(table_parameters, data_col_parameters, db_cursor):
     parms["pop_col_sum"] = sql.SQL('sum({} * {})').format(wgt_sql, pop_sql)
     parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), data_col_parameters["intensive_cols"]))
     sql_str = sql.SQL('''
-select "outer_id", sum("dev_area_m2"), sum("rast_area_m2"), sum("overlap_area_m2"), {pop_col_sum}, {intensive_col_sums}, {extensive_col_sums}
-from {data_geom_table} "dg"
-inner join (
-      select "outer_id", "data_geom_id", "area_wgt",
-           case
-		when sum("dev_in_data_geom") > 0
-		then sum("dev_in_both")::float / sum("dev_in_data_geom")
-		else 0
-	   end as "rast_wgt",
-           sum("dev_area_m2") as "dev_area_m2",
-           sum("rast_area_m2") as "rast_area_m2",
-           sum("overlap_area_m2") as "overlap_area_m2"
-      from (
-        select "outer".{outer_id_col} as "outer_id",
-               "data_geom".{data_geom_id_col} as "data_geom_id",
-  	       ST_area(ST_intersection("data_geom".{data_geom_col}, "outer".{outer_geom_col}) :: geography) as "overlap_area_m2",
-  	       ST_area(ST_intersection("data_geom".{data_geom_col}, "outer".{outer_geom_col}))/ST_area("data_geom".{data_geom_col}) as "area_wgt",
-	       ST_CLIP("lc".rast, "data_geom".{data_geom_col}, true) as "crast",
-	       coalesce(ST_valuecount(ST_reclass(ST_CLIP(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),'[20-29]:1','1BB'),1,true,1), 0)   as "dev_in_both",
-  	       ST_valuecount(ST_reclass(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true),'[20-29]:1','1BB'),1,true,1) as "dev_in_data_geom",
-               ST_Area(ST_Polygon(ST_reclass(ST_CLIP(ST_CLIP("lc"."rast", "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),'[20-29]:1','1BB')) :: geography) as "dev_area_m2",
-               ST_Area(ST_ConvexHull(ST_clip(ST_clip("lc"."rast", "data_geom".{data_geom_col},true), "outer".{outer_geom_col}, true)) :: geography) as "rast_area_m2"
-      from {data_geom_table} "data_geom"
-      inner join {outer_geom_table} "outer"
-      on ST_intersects("data_geom".{data_geom_col},"outer".{outer_geom_col})
-      inner join (
-        select {lc_rast_col} as rast
-	from {lc_rast_table}
-      ) "lc"
-      on ST_intersects("data_geom".{data_geom_col}, "lc"."rast")
-      )
-      group by "outer_id", "data_geom_id", "area_wgt"
-    ) "dg_and_wgt"
-on "dg".{data_geom_id_col} = "dg_and_wgt"."data_geom_id"
-group by "outer_id"
+select distinct "a".{outer_id_col}
+from (
+  select ST_clip("rast_in_data_geom", "og".{outer_geom_col}, true) as "rast_in_both", "og".{outer_id_col}
+  from (
+    select ST_clip( "lc".{lc_rast_col}, "dg".{data_geom_col}, true) as "rast_in_data_geom"
+    from {data_geom_table} "dg"
+    inner join {lc_rast_table} "lc"
+    on ST_intersects("dg".{data_geom_col}, "lc".{lc_rast_col})
+  )
+  inner join {outer_geom_table} "og"
+  on ST_intersects("og".{outer_geom_col}, "rast_in_data_geom")
+) "a"
+group by "a".{outer_id_col}
 ''').format(**parms)
     return sql_str
 
-
-qsql = data_and_wgt_tbl_sql(table_params, data_col_params, cur)
+qsql = data_and_wgt_tbl_sql2(table_params, data_col_params, cur)
 print(qsql.as_string(conn))
 cur.execute(qsql)
 print(cur.fetchall())
 
 exit(0)
-
 
 a_wgt_sql_str = sql.SQL('''
 SELECT t.{t_id} as "tract_id",

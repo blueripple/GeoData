@@ -80,6 +80,32 @@ raster_table_info = {
     "rast_col": "rast"
 }
 
+def developed_land_cover(raster_table, db_connection):
+    parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), raster_table.items()))
+    parms["new_table"] = sql.Identifier(raster_table["raster_table_name"] + "_dev")
+    sql_str = sql.SQL('''
+DROP TABLE IF EXISTS {new_table};
+CREATE TABLE {new_table} as
+select rid,
+       ST_RECLASS(rast,1,'0-19:0, 20-29:1, 30-255:0','1BB',0) as "rast",
+       filename
+from {raster_table_name};
+CREATE INDEX nlcd_us_dev_convexhull_idx ON {new_table} USING GIST(ST_ConvexHull("rast"));
+''').format(**parms)
+    print("Reclassifying land cover in {raster_table_name} to developed only in {new_table}".format(**parms))
+    print(sql_str.as_string(db_connection))
+    cur = db_connection.cursor()
+    cur.execute(sql_str)
+    db_connection.commit()
+    print("done!")
+
+#load_raster(conus_nlcd_rp)
+#load_raster(AK_nlcd)
+#load_raster(US_nlcd)
+conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
+developed_land_cover(raster_table_info, conn)
+conn.close()
+
 def add_rasters_to_geometries(raster_info, geometry_info):
     inner_sql = sql.SQL('''\
 SELECT g.{id_col} as "geom_id", ST_CLIP(r.{rast_col}, g.{geom_col},true) as "rast"
@@ -108,10 +134,7 @@ ON g.{id_col} = tr."geom_id"
     cur = conn.cursor()
     print(inner_sql.as_string(conn))
     cur.execute(inner_sql)
-#load_raster(conus_nlcd_rp)
-#load_raster(AK_nlcd)
-#load_raster(US_nlcd)
-add_rasters_to_geometries(raster_table_info, geom_table_info)
+#add_rasters_to_geometries(raster_table_info, geom_table_info)
 
-#conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
+
 #cur = conn.cursor()
