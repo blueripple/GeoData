@@ -75,8 +75,26 @@ def dasymmetric_interpolation_sql(table_parameters, data_col_parameters, db_curs
     parms["pop_col_sum"] = sql.SQL('sum({} * {})').format(wgt_sql, pop_sql)
     parms["density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({area}) * 2.589988e6 as "ppl_per_mi2"').format(wgt = wgt_sql, pop = pop_sql, area = area_sql)
     parms["dev_density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({dev_area}) * 2.589988e6 as "ppl_per_dev_mi2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
-    parms["PW_density_sum"] = sql.SQL('sum({wgt} * {pop} * {wgt} * {pop} / {area})/sum({wgt} * {pop}) * 2.589988e6 as "pw_ppl_per_mi2"').format(wgt = wgt_sql, pop = pop_sql, area = area_sql)
-    parms["PW_dev_density_sum"] = sql.SQL('sum({wgt} * {pop} * {wgt} * {pop} / {dev_area})/sum({wgt} * {pop}) * 2.589988e6 as "pw_ppl_per_dev_mi2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
+    parms["PW_ldensity_sum"] = sql.SQL(
+        '''exp(sum(
+                case
+                 when {wgt} > 0
+                 then {wgt} * {pop} * log({wgt} * {pop} / {area})
+                 else 0
+                 end
+               )
+               / sum({wgt} * {pop})) * 2.589988e6 as "pw_ppl_per_mi2"
+''').format(wgt = wgt_sql, pop = pop_sql, area = area_sql)
+    parms["PW_dev_ldensity_sum"] = sql.SQL(
+        '''exp(sum(
+                case
+                 when {wgt} > 0
+                 then {wgt} * {pop} * log({wgt} * {pop} / {dev_area})
+                 else 0
+                 end
+                )
+                / sum({wgt} * {pop})) * 2.589988e6 as "pw_ppl_per_dev_mi2"
+''').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
 
     parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), data_col_parameters["intensive_cols"]))
     sql_str = sql.SQL('''
@@ -85,8 +103,8 @@ select "outer_id",
        {pop_col_sum},
        {density_sum},
        {dev_density_sum},
-       {PW_density_sum},
-       {PW_dev_density_sum},
+       {PW_ldensity_sum},
+       {PW_dev_ldensity_sum},
        sum("dev_area_m2") * 3.861022e-7 as "developed_area_mi2",
        sum("overlap_area_m2") * 3.681022e-7 as "area_mi2",
        {intensive_col_sums},
