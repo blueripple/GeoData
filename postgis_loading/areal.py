@@ -30,73 +30,87 @@ def tupleAt(n,t):
 
 tract_pop_col = "AMPVE001"
 
-table_params = {
+outer_geom_params = {
     "outer_geom_table": "ny_sldu",
     "outer_id_col": "id_0",
     "outer_geom_col": "geom",
     "outer_name_col": "name",
-    "data_geom_table": "tract_join_test",
+}
+
+tract_and_lcd_params = {
+    "data_geom_table": "tract_shp_and_data",
     "data_geom_id_col": "geoid",
     "data_geom_col": "geom",
+    "data_geom_schema": "public",
+    "pop_col": "AMPVE001",
+    "intensive_cols": ["AMTCE001"],
+    "extensive_col_pat": re.compile('AN[A-Z]+E\d\d\d'),
     "lc_rast_table": "nlcd_us_dev",
     "lc_rast_col": "rast"
 }
 
-data_col_params = {
-    "data_geom_schema": "public",
-    "pop_col": "AMPVE001",
-    "intensive_cols": ["AMTCE001"],
-    "extensive_col_pat": re.compile('AN[A-Z]+E\d\d\d')
-}
+
+#data_col_params = {
+#    "data_geom_schema": "public",
+#    "pop_col": "AMPVE001",
+#    "intensive_cols": ["AMTCE001"],
+#    "extensive_col_pat": re.compile('AN[A-Z]+E\d\d\d')
+#}
 
 def inTuple(n,t):
     x = t[n]
     return x
 
-def extensive_cols(table_parameters, col_parameters, db_cursor):
-    print("Getting extensive cols for data_geom_table={}".format(table_parameters["data_geom_table"]))
+def extensive_cols(tract_and_lcd_parameters, db_cursor):
+    print("Getting extensive cols for data_geom_table={}".format(tract_and_lcd_parameters["data_geom_table"]))
     db_cursor.execute(sql.SQL("SELECT column_name FROM information_schema.columns WHERE table_schema = {data_geom_schema} AND table_name = {data_geom_table}")
-                      .format(data_geom_schema = sql.Literal(col_parameters["data_geom_schema"]),
-                              data_geom_table = sql.Literal(table_parameters["data_geom_table"])
+                      .format(data_geom_schema = sql.Literal(tract_and_lcd_parameters["data_geom_schema"]),
+                              data_geom_table = sql.Literal(tract_and_lcd_parameters["data_geom_table"])
                               )
                       )
     cols = list(map(lambda x: inTuple(0,x),db_cursor.fetchall()))
-    data_cols = [c for c in cols if col_parameters["extensive_col_pat"].match(c)]
+    data_cols = [c for c in cols if tract_and_lcd_parameters["extensive_col_pat"].match(c)]
     return data_cols
 
-def dasymmetric_interpolation_sql(table_parameters, data_col_parameters, db_cursor):
-    parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), table_parameters.items()))
-    ext_cols = extensive_cols(table_parameters, data_col_parameters, db_cursor)
+def dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, db_cursor):
+    parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og_parameters.items()))
+    parms["data_geom_table"] = sql.Identifier(tract_and_lcd_parameters["data_geom_table"])
+    parms["data_geom_id_col"] = sql.Identifier(tract_and_lcd_parameters["data_geom_id_col"])
+    parms["data_geom_col"] = sql.Identifier(tract_and_lcd_parameters["data_geom_col"])
+    parms["lc_rast_table"] = sql.Identifier(tract_and_lcd_parameters["lc_rast_table"])
+    parms["lc_rast_col"] = sql.Identifier(tract_and_lcd_parameters["lc_rast_col"])
+    ext_cols = extensive_cols(tract_and_lcd_parameters, db_cursor)
     wgt_sql = sql.Identifier("rast_wgt")
     dev_area_sql = sql.Identifier("dev_area_m2")
+    rast_area_sql = sql.Identifier("rast_area_m2")
     area_sql = sql.Identifier("overlap_area_m2")
-    pop_sql = sql.Identifier(data_col_parameters["pop_col"])
+    pop_sql = sql.Identifier(tract_and_lcd_parameters["pop_col"])
     parms["extensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('round(sum({} * {}))').format(wgt_sql,sql.Identifier(x)), ext_cols))
     parms["pop_col_sum"] = sql.SQL('sum({} * {})').format(wgt_sql, pop_sql)
-    parms["density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({area}) * 2.589988e6 as "ppl_per_mi2"').format(wgt = wgt_sql, pop = pop_sql, area = area_sql)
+    parms["density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({area}) * 2.589988e6 as "ppl_per_mi2"').format(wgt = wgt_sql, pop = pop_sql, area = rast_area_sql)
     parms["dev_density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({dev_area}) * 2.589988e6 as "ppl_per_dev_mi2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
     parms["PW_ldensity_sum"] = sql.SQL(
         '''exp(sum(
                 case
-                 when {wgt} > 0
-                 then {wgt} * {pop} * log({wgt} * {pop} / {area})
-                 else 0
-                 end
-               )
-               / sum({wgt} * {pop})) * 2.589988e6 as "pw_ppl_per_mi2"
-''').format(wgt = wgt_sql, pop = pop_sql, area = area_sql)
-    parms["PW_dev_ldensity_sum"] = sql.SQL(
-        '''exp(sum(
-                case
-                 when {wgt} > 0
-                 then {wgt} * {pop} * log({wgt} * {pop} / {dev_area})
+                 when ({wgt} * {pop}) > 0
+                 then {wgt} * {pop} * ln({wgt} * {pop} * 2.589988e6 / {rast_overlap_area})
                  else 0
                  end
                 )
-                / sum({wgt} * {pop})) * 2.589988e6 as "pw_ppl_per_dev_mi2"
+               / sum({wgt} * {pop})) as "pw_ppl_per_mi2"
+''').format(wgt = wgt_sql, pop = pop_sql, rast_overlap_area = rast_area_sql)
+    parms["PW_dev_ldensity_sum"] = sql.SQL(
+        '''exp(sum(
+                case
+                 when ({wgt} * {pop}) > 0
+                 then {wgt} * {pop} * ln({wgt} * {pop} * 2.589988e6 / {dev_area})
+                 else 0
+                 end
+                )
+                / sum({wgt} * {pop})) as "pw_ppl_per_dev_mi2"
 ''').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
 
-    parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), data_col_parameters["intensive_cols"]))
+    parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), tract_and_lcd_parameters["intensive_cols"]))
     sql_str = sql.SQL('''
 select "outer_id",
        "outer_name",
@@ -106,7 +120,7 @@ select "outer_id",
        {PW_ldensity_sum},
        {PW_dev_ldensity_sum},
        sum("dev_area_m2") * 3.861022e-7 as "developed_area_mi2",
-       sum("overlap_area_m2") * 3.681022e-7 as "area_mi2",
+       sum("rast_area_m2") * 3.681022e-7 as "area_mi2",
        {intensive_col_sums},
        {extensive_col_sums}
 from {data_geom_table} "dg"
@@ -118,6 +132,7 @@ inner join (
 		else 0
 	   end as "rast_wgt",
            sum(ST_area(ST_Polygon("rast_in_both") :: geography)) as  "dev_area_m2",
+           sum(ST_area(ST_Envelope("rast_in_both") :: geography)) as  "rast_area_m2",
            ST_area("data_in_outer_geom")/ST_area("data_geom") as "area_wgt",
            ST_area("data_in_outer_geom" :: geography) as "overlap_area_m2"
       from (
@@ -147,11 +162,11 @@ group by "outer_id", "outer_name"
 ''').format(**parms)
     return sql_str
 
-def dasymmetric_interpolation(table_parameters, data_col_parameters, db_connection):
+def dasymmetric_interpolation(og_parameters, tract_and_lcd_parameters, db_connection):
     cur = db_connection.cursor()
-    sql = dasymmetric_interpolation_sql(table_parameters, data_col_parameters, cur)
-    ext_cols = extensive_cols(table_parameters, data_col_parameters, cur)
-    int_cols = data_col_parameters["intensive_cols"]
+    sql = dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, cur)
+    ext_cols = extensive_cols(tract_and_lcd_parameters, cur)
+    int_cols = tract_and_lcd_parameters["intensive_cols"]
     cols = ["ID","DistrictName","TotalPopulation","PopPerSqMile","PopPerDevSqMile","pwPopPerSqMile","pwPopPerDevSqMile","DevArea_m2","OverlapArea_m2"] + int_cols + ext_cols
     print(sql.as_string(db_connection))
     cur.execute(sql)
@@ -159,10 +174,10 @@ def dasymmetric_interpolation(table_parameters, data_col_parameters, db_connecti
     col_type_dict = dict(map(lambda x: (x, int), ["TotalPopulation"] + ext_cols))
     return df.astype(col_type_dict)
 
-dasymmetric_result = dasymmetric_interpolation(table_params, data_col_params, conn)
-print(dasymmetric_result.to_csv(header=True, index=False, float_format="%.2f"))
+#dasymmetric_result = dasymmetric_interpolation(outer_geom_params, tract_and_lcd_params, conn)
+#print(dasymmetric_result.to_csv(header=True, index=False, float_format="%.2f"))
 
-exit(0)
+#exit(0)
 
 def transform_srid(table_name, geom_col, transformed_table_name, source_srid, target_srid, db_connection):
     cur = db_connection.cursor()
@@ -195,21 +210,46 @@ CREATE INDEX {nti} ON {nt} USING GIST({gc});
     print("transform_srid: done!")
     return transformed_table_name
 
-def dasymmetric_from_file(db_connection, state, chamber, filename, name_col="NAME", geom_col="geometry", srid=4326):
+def dasymmetric_from_file(db_connection, filename, id_col="id_0", name_col="name", geom_col="geometry", wkt="EPSG:4326"):
     print("dasymmetric_from_file: loading shapes from {} to database...".format(filename))
-    cmd_uf = "shp2pgsql -D -I -s {srid_} {filename_} {table} | psql dbname={dbname_} user={db_user_} password={db_password_}"
-    cmd = cmd_uf.format(srid_ = srid.as_string(),
-                        filename_ = filename,
-                        table = "sld_shapes",
+#    cmd_uf = "shp2pgsql -D -I -s {srid_} {filename_} {table} | psql dbname={dbname_} user={db_user_} password={db_password_}"
+    if (wkt != "EPSG:4326"):
+        srid_flags = "-s_SRS {} -t_srs EPSG:4326"
+    else:
+        srid_flags = ""
+    cmd_uf = "ogr2ogr -f \"PostgreSQL\" PG:\"dbname={dbname_} user={db_user_} password={db_password_}\ host='localhost' port='5432'\" {filename_} -lco GEOMETRY_NAME=geometry -lco FID={id_col_} -progress {srid_flags_} -nln public.{table}"
+    cmd = cmd_uf.format(filename_ = filename,
+                        table = "shapes_tmp",
+                        id_col_ = id_col,
                         dbname_ = dbname,
                         db_user_ = db_user,
-                        dp_password_ = db_password)
+                        db_password_ = db_password,
+                        srid_flags_ = srid_flags)
+    print("dasymmetric_from_file: running command \"{}\"".format(cmd))
     subprocess.call(cmd, shell=True)
-    print("dasymmetric_from_file: done loading shapes from file.")
-    if (srid != 4326):
-        table_name = transform_srid("sld_shapes", geom_col, "sld_shapes_4326", srid, 4326, db_connection)
+    print("dasymmetric_from_file: done loading shapes from file into postgres table shapes_tmp.")
+#    print("dasymmetric_from_file: Transforming to srid=436 if necessary.")
+#    if (srid != 4326):
+#        table_name = transform_srid("shapes_tmp", geom_col, "tmp_shapes_4326", srid, 4326, db_connection)
+    print("Joining on shapes and rasters to interpolate census tract data.")
+    ogps = {
+        "outer_geom_table": "shapes_tmp",
+        "outer_id_col": id_col,
+        "outer_geom_col": geom_col,
+        "outer_name_col": name_col
+    }
+    res = dasymmetric_interpolation(ogps, tract_and_lcd_params, db_connection)
+    print("Done with dasymmetric interpolation. Dropping temp table...")
+    cur = db_connection.cursor()
+    cur.execute("drop table shapes_tmp")
+    db_connection.commit()
+    return res
 
 
+test_from_file = dasymmetric_from_file(conn, "input_data/StateLegDistricts/2024/NY_sldu.geojson")
+print(test_from_file.to_csv(header=True, index=False, float_format="%.2f"))
+
+exit(0)
 
 def data_and_wgt_tbl_sql2(table_parameters, data_col_parameters, db_cursor):
     parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), table_parameters.items()))
