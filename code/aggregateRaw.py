@@ -206,6 +206,7 @@ def doAggregation(acsData, aggTo, stateFIPS=''):
         geopandaToStatsCSV(gp, aggTo.outStats)
     else:
         print(aggTo.outStats + " exists and is current with input map. Leaving in place.")
+
 si = loadStatesInfo()
 
 cdStatesAndFIPS = si.fipsFromAbbr.copy()

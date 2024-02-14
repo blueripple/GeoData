@@ -9,12 +9,13 @@ import itertools
 #tract_data = [data_dir + "nhgis0042_d262_20225_tract_E_.csv",
 #              data_dir + "nhgis0042_d263_20225_tract_E_.csv"]
 
-dbname = "tract_test"
+dbname = "tracts_and_nlcd"
 schema_name = "public"
-shape_table = "Census_Tract_US_2020"
+shape_table = "census_tracts_2022"
 shape_cols = ["gisjoin", "geoid", "geom", "statefp", "countyfp"]
-data_tables = ["nhgis0038_ds249", "nhgis0038_ds250"]
-data_common_cols = ["GISJOIN", "STUSAB", "COUNTY", "COUNTYA", "GEOID"]
+#data_tables = ["nhgis0038_ds249", "nhgis0038_ds250"]
+data_tables = ["nhgis0042_ds262", "nhgis0042_ds263"]
+data_common_cols = ["GISJOIN", "STUSAB", "COUNTY", "COUNTYA", "GEO_ID"]
 set_dcc = set(data_common_cols)
 data_col_pat = re.compile('[A-Z]+E\d\d\d')
 
@@ -68,12 +69,12 @@ def join_columns(vi):
     table_alias = "v" + str(view_number)
     return sql.SQL(', ').join(map(lambda x: sql.Identifier(table_alias, x),view_data_cols))
 
-join_result_table = "tract_join_test"
+join_result_table = "tracts2022_shp_and_data"
 
 join_sql = sql.SQL('''
 CREATE TABLE {nt}
 AS SELECT {shape_cols}, {joined_cols}
-FROM {shapes} t {joins})
+FROM {shapes} t {joins}
 ''').format(nt = sql.Identifier(join_result_table),
             shapes = sql.Identifier(shape_table),
             shape_cols = sql.SQL(', ').join(map(lambda x: sql.Identifier("t",x), shape_cols)),

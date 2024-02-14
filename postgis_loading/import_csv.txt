@@ -1,0 +1,11 @@
+Use DBeaver to import the two tables
+1. Drop at least the NAME column in the import dialog (configure and del)
+2. Change TRACTA, NAME, COUNTYA to varchar (from varchar50)
+3. Change TL_GEO_ID to varchar (from int)
+
+Use QGIS to load the shapes
+1. load them
+2. fix them (vector -> fix)
+3. reproject them to EPSG:4326 (vector -> reproject)
+4. fix them again
+5. Export to postgres
