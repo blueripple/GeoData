@@ -87,7 +87,8 @@ def extensive_cols(tract_and_lcd_parameters, db_cursor):
                  ]
     return data_cols
 
-def dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, db_cursor):
+
+def dasymmetric_interpolation_sql2(og_parameters, tract_and_lcd_parameters, db_cursor):
     parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og_parameters.items()))
     parms["data_geom_table"] = sql.Identifier(tract_and_lcd_parameters["data_geom_table"])
     parms["data_geom_id_col"] = sql.Identifier(tract_and_lcd_parameters["data_geom_id_col"])
@@ -102,13 +103,13 @@ def dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, db_cu
     pop_sql = sql.Identifier(tract_and_lcd_parameters["pop_col"])
     parms["extensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('round(sum({} * {}))').format(wgt_sql,sql.Identifier(x)), ext_cols))
     parms["pop_col_sum"] = sql.SQL('sum({} * {})').format(wgt_sql, pop_sql)
-    parms["density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({area}) * 2.589988e6 as "ppl_per_mi2"').format(wgt = wgt_sql, pop = pop_sql, area = rast_area_sql)
-    parms["dev_density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({dev_area}) * 2.589988e6 as "ppl_per_dev_mi2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
+    parms["density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({area}) * 1e6 as "ppl_per_km2"').format(wgt = wgt_sql, pop = pop_sql, area = rast_area_sql)
+    parms["dev_density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({dev_area}) * 1e6 as "ppl_per_dev_km2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
     parms["PW_ldensity_sum"] = sql.SQL(
         '''exp(sum(
                 case
                  when ({wgt} * {pop}) > 0
-                 then {wgt} * {pop} * ln({wgt} * {pop} * 2.589988e6 / {rast_overlap_area})
+                 then {wgt} * {pop} * ln({wgt} * {pop} * 1e6 / {rast_overlap_area})
                  else 0
                  end
                 )
@@ -118,7 +119,7 @@ def dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, db_cu
         '''exp(sum(
                 case
                  when ({wgt} * {pop}) > 0
-                 then {wgt} * {pop} * ln({wgt} * {pop} * 2.589988e6 / {dev_area})
+                 then {wgt} * {pop} * ln({wgt} * {pop} * 1e6 / {dev_area})
                  else 0
                  end
                 )
@@ -127,57 +128,60 @@ def dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, db_cu
 
     parms["intensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('sum({wgt} * {pop} * {iv})/sum({wgt} * {pop})').format(wgt=wgt_sql, pop=pop_sql, iv=sql.Identifier(x)), list(map(lambda x:inTuple(0,x), tract_and_lcd_parameters["intensive_cols"]))))
     sql_str = sql.SQL('''
-select "outer_id",
-       "outer_name",
-       {pop_col_sum},
-       sum("dev_area_m2") * 3.861022e-7 as "developed_area_mi2",
-       sum("rast_area_m2") * 3.681022e-7 as "area_mi2",
-       {density_sum},
-       {dev_density_sum},
-       {PW_ldensity_sum},
-       {PW_dev_ldensity_sum},
-       {intensive_col_sums},
-       {extensive_col_sums}
-from {data_geom_table} "dg"
+select {outer_id_col}, {outer_name_col}, ST_area({outer_geom_col} :: geography) * 1e-6, "inner".*
+from {outer_geom_table}
 inner join (
-      select "outer_id", "outer_name", "data_geom_id",
-             case
-		when sum("dev_in_data_geom") > 0
-		then sum("dev_in_both")::float / sum("dev_in_data_geom")
-		else 0
-	     end as "rast_wgt",
-             sum(ST_area(ST_Polygon("rast_in_both") :: geography)) as  "dev_area_m2",
-             sum(ST_area(ST_Envelope("rast_in_both") :: geography)) as  "rast_area_m2"
-      from (
-        select "outer".{outer_id_col} as "outer_id",
-               "outer".{outer_name_col} as "outer_name",
-               "data_geom".{data_geom_id_col} as "data_geom_id",
-               "data_geom".{data_geom_col} as "data_geom",
-	       ST_CLIP(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true) as "rast_in_both",
-	       coalesce(ST_valuecount(ST_CLIP(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),1,true,1), 0)   as "dev_in_both",
-  	       ST_valuecount(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true),1,true,1) as "dev_in_data_geom"
-        from {data_geom_table} "data_geom"
-        inner join {outer_geom_table} "outer"
-        on ST_intersects("data_geom".{data_geom_col},"outer".{outer_geom_col})
-        inner join {lc_rast_table}
-        on ST_intersects("data_geom".{data_geom_col}, {lc_rast_table}."rast")
-      )
-      group by "outer_id", "outer_name", "data_geom_id"
-    ) "dg_and_wgt"
-on "dg".{data_geom_id_col} = "dg_and_wgt"."data_geom_id"
-group by "outer_id", "outer_name"
+    select "outer_id",
+            sum("rast_area_m2") * 1e-6 as "area_km2",
+            sum("dev_area_m2") * 1e-6 as "developed_area_km2",
+            {pop_col_sum},
+           {density_sum},
+           {dev_density_sum},
+           {PW_ldensity_sum},
+           {PW_dev_ldensity_sum},
+           {intensive_col_sums},
+           {extensive_col_sums}
+    from {data_geom_table} "dg"
+    inner join (
+          select "outer_id", "data_geom_id",
+                 case
+                    when sum("dev_in_data_geom") > 0
+                    then sum("dev_in_both")::float / sum("dev_in_data_geom")
+                    else 0
+                 end as "rast_wgt",
+                 sum(ST_area(ST_Polygon("rast_in_both") :: geography)) as  "dev_area_m2",
+                 sum(ST_area(ST_Envelope("rast_in_both") :: geography)) as  "rast_area_m2"
+          from (
+            select "outer".{outer_id_col} as "outer_id",
+                   "data_geom".{data_geom_id_col} as "data_geom_id",
+                   "data_geom".{data_geom_col} as "data_geom",
+                   ST_CLIP(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true) as "rast_in_both",
+                   coalesce(ST_valuecount(ST_CLIP(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),1,true,1), 0)   as "dev_in_both",
+                   ST_valuecount(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true),1,true,1) as "dev_in_data_geom"
+            from {data_geom_table} "data_geom"
+            inner join {outer_geom_table} "outer"
+            on ST_intersects("data_geom".{data_geom_col},"outer".{outer_geom_col})
+            inner join {lc_rast_table}
+            on ST_intersects("data_geom".{data_geom_col}, {lc_rast_table}."rast")
+          )
+          group by "outer_id", "data_geom_id"
+        ) "dg_and_wgt"
+    on "dg".{data_geom_id_col} = "dg_and_wgt"."data_geom_id"
+    group by "outer_id"
+) "inner"
+on "inner"."outer_id" = {outer_id_col}
 ''').format(**parms)
     return sql_str
 
 def dasymmetric_interpolation(og_parameters, tract_and_lcd_parameters, db_connection):
     cur = db_connection.cursor()
-    sql = dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, cur)
+    sql = dasymmetric_interpolation_sql2(og_parameters, tract_and_lcd_parameters, cur)
     ext_cols = extensive_cols(tract_and_lcd_parameters, cur)
     int_cols = list(map(lambda x:inTuple(1,x), tract_and_lcd_parameters["intensive_cols"]))
-    cols = ["ID","DistrictName","TotalPopulation","DevSqMiles","SqMiles","PopPerSqMile","PopPerDevSqMile","pwPopPerSqMile","pwPopPerDevSqMile"] + int_cols + ext_cols
+    cols = ["ID","DistrictName","SqKm", "ID_Copy","RastSqKm","DevSqKm","TotalPopulation","PopPerSqKm","PopPerDevSqKm","pwPopPerSqKm","pwPopPerDevSqKm"] + int_cols + ext_cols
     print(sql.as_string(db_connection))
     cur.execute(sql)
-    df = pd.DataFrame(cur.fetchall(),columns = cols)
+    df = pd.DataFrame(cur.fetchall(),columns = cols).drop(["ID_Copy"], axis=1)
     col_type_dict = dict(map(lambda x: (x, int), ["TotalPopulation"] + ext_cols))
     return df.astype(col_type_dict)
 
@@ -239,7 +243,8 @@ def dasymmetric_from_file(db_connection, filename, tract_data_parameters, id_col
 #conn.close(
 #exit(0)
 
-def dasymmetric_interpolation_sql2(og_parameters, tract_and_lcd_parameters, db_cursor):
+
+def dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, db_cursor):
     parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og_parameters.items()))
     parms["data_geom_table"] = sql.Identifier(tract_and_lcd_parameters["data_geom_table"])
     parms["data_geom_id_col"] = sql.Identifier(tract_and_lcd_parameters["data_geom_id_col"])
@@ -254,13 +259,13 @@ def dasymmetric_interpolation_sql2(og_parameters, tract_and_lcd_parameters, db_c
     pop_sql = sql.Identifier(tract_and_lcd_parameters["pop_col"])
     parms["extensive_col_sums"] = sql.SQL(', ').join(map(lambda x: sql.SQL('round(sum({} * {}))').format(wgt_sql,sql.Identifier(x)), ext_cols))
     parms["pop_col_sum"] = sql.SQL('sum({} * {})').format(wgt_sql, pop_sql)
-    parms["density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({area}) * 2.589988e6 as "ppl_per_mi2"').format(wgt = wgt_sql, pop = pop_sql, area = rast_area_sql)
-    parms["dev_density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({dev_area}) * 2.589988e6 as "ppl_per_dev_mi2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
+    parms["density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({area}) * 1e6 as "ppl_per_km2"').format(wgt = wgt_sql, pop = pop_sql, area = rast_area_sql)
+    parms["dev_density_sum"] = sql.SQL('sum({wgt} * {pop})/sum({dev_area}) * 1e6 as "ppl_per_dev_km2"').format(wgt = wgt_sql, pop = pop_sql, dev_area = dev_area_sql)
     parms["PW_ldensity_sum"] = sql.SQL(
         '''exp(sum(
                 case
                  when ({wgt} * {pop}) > 0
-                 then {wgt} * {pop} * ln({wgt} * {pop} * 2.589988e6 / {rast_overlap_area})
+                 then {wgt} * {pop} * ln({wgt} * {pop} * 1e6 / {rast_overlap_area})
                  else 0
                  end
                 )
@@ -270,7 +275,7 @@ def dasymmetric_interpolation_sql2(og_parameters, tract_and_lcd_parameters, db_c
         '''exp(sum(
                 case
                  when ({wgt} * {pop}) > 0
-                 then {wgt} * {pop} * ln({wgt} * {pop} * 2.589988e6 / {dev_area})
+                 then {wgt} * {pop} * ln({wgt} * {pop} * 1e6 / {dev_area})
                  else 0
                  end
                 )
@@ -282,8 +287,8 @@ def dasymmetric_interpolation_sql2(og_parameters, tract_and_lcd_parameters, db_c
 select "outer_id",
        "outer_name",
        {pop_col_sum},
-       sum("dev_area_m2") * 3.861022e-7 as "developed_area_mi2",
-       sum("rast_area_m2") * 3.681022e-7 as "area_mi2",
+       sum("dev_area_m2") * 1e-6 as "developed_area_km2",
+       sum("rast_area_m2") * 1e-6 as "area_km2",
        {density_sum},
        {dev_density_sum},
        {PW_ldensity_sum},
@@ -293,23 +298,18 @@ select "outer_id",
 from {data_geom_table} "dg"
 inner join (
       select "outer_id", "outer_name", "data_geom_id",
-           case
+             case
 		when sum("dev_in_data_geom") > 0
 		then sum("dev_in_both")::float / sum("dev_in_data_geom")
 		else 0
-	   end as "rast_wgt",
-           sum(ST_area(ST_Polygon("rast_in_both") :: geography)) as  "dev_area_m2",
-           sum(ST_area(ST_Envelope("rast_in_both") :: geography)) as  "rast_area_m2"
+	     end as "rast_wgt",
+             sum(ST_area(ST_Polygon("rast_in_both") :: geography)) as  "dev_area_m2",
+             sum(ST_area(ST_Envelope("rast_in_both") :: geography)) as  "rast_area_m2"
       from (
         select "outer".{outer_id_col} as "outer_id",
                "outer".{outer_name_col} as "outer_name",
                "data_geom".{data_geom_id_col} as "data_geom_id",
                "data_geom".{data_geom_col} as "data_geom",
-               case
-                 when ST_WITHIN("data_geom".{data_geom_col}, "outer".{outer_geom_col})
-                 then "data_geom".{data_geom_col}
-                 else ST_INTERSECTION("data_geom".{data_geom_col}, "outer".{outer_geom_col})
-               end as "data_in_outer_geom",
 	       ST_CLIP(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true) as "rast_in_both",
 	       coalesce(ST_valuecount(ST_CLIP(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true), "outer".{outer_geom_col}, true),1,true,1), 0)   as "dev_in_both",
   	       ST_valuecount(ST_CLIP({lc_rast_table}.{lc_rast_col}, "data_geom".{data_geom_col}, true),1,true,1) as "dev_in_data_geom"
@@ -319,7 +319,7 @@ inner join (
         inner join {lc_rast_table}
         on ST_intersects("data_geom".{data_geom_col}, {lc_rast_table}."rast")
       )
-      group by "outer_id", "outer_name", "data_geom_id", "data_geom", "data_in_outer_geom"
+      group by "outer_id", "outer_name", "data_geom_id"
     ) "dg_and_wgt"
 on "dg".{data_geom_id_col} = "dg_and_wgt"."data_geom_id"
 group by "outer_id", "outer_name"
