@@ -132,9 +132,8 @@ select {outer_id_col}, {outer_name_col}, ST_area({outer_geom_col} :: geography) 
 from {outer_geom_table}
 inner join (
     select "outer_id",
-            sum("rast_area_m2") * 1e-6 as "area_km2",
-            sum("dev_area_m2") * 1e-6 as "developed_area_km2",
-            {pop_col_sum},
+           sum("dev_area_m2") * 1e-6 as "developed_area_km2",
+           {pop_col_sum},
            {density_sum},
            {dev_density_sum},
            {PW_ldensity_sum},
@@ -173,27 +172,32 @@ on "inner"."outer_id" = {outer_id_col}
 ''').format(**parms)
     return sql_str
 
+#           sum("rast_area_m2") * 1e-6 as "area_km2",
+
+#                 sum(ST_area(ST_Polygon("rast_in_both") :: geography)) as  "dev_area_m2",
+#                 sum(ST_area(ST_Envelope("rast_in_both") :: geography)) as  "rast_area_m2"
+
 def dasymmetric_interpolation(og_parameters, tract_and_lcd_parameters, db_connection):
     cur = db_connection.cursor()
     sql = dasymmetric_interpolation_sql2(og_parameters, tract_and_lcd_parameters, cur)
     ext_cols = extensive_cols(tract_and_lcd_parameters, cur)
     int_cols = list(map(lambda x:inTuple(1,x), tract_and_lcd_parameters["intensive_cols"]))
-    cols = ["ID","DistrictName","SqKm", "ID_Copy","RastSqKm","DevSqKm","TotalPopulation","PopPerSqKm","PopPerDevSqKm","pwPopPerSqKm","pwPopPerDevSqKm"] + int_cols + ext_cols
-    print(sql.as_string(db_connection))
+    cols = ["ID","DistrictName","SqKm", "ID_Copy","DevSqKm","TotalPopulation","PopPerSqKm","PopPerDevSqKm","pwPopPerSqKm","pwPopPerDevSqKm"] + int_cols + ext_cols
+#    print(sql.as_string(db_connection))
     cur.execute(sql)
     df = pd.DataFrame(cur.fetchall(),columns = cols).drop(["ID_Copy"], axis=1)
     col_type_dict = dict(map(lambda x: (x, int), ["TotalPopulation"] + ext_cols))
     return df.astype(col_type_dict)
 
-conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
-dasymmetric_result = dasymmetric_interpolation(outer_geom_params, acs2022_and_lcd_params, conn)
-print(dasymmetric_result.to_csv(header=True, index=False, float_format="%.2f"))
+#conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
+#dasymmetric_result = dasymmetric_interpolation(outer_geom_params, acs2022_and_lcd_params, conn)
+#print(dasymmetric_result.to_csv(header=True, index=False, float_format="%.2f"))
 
-exit(0)
+#exit(0)
 
 
 def load_shapes_from_file(db_connection, filename, table_name, id_col="id_0", name_col="name", geom_col="geometry", wkt="EPSG:4326"):
-    print("dasymmetric_from_file: loading shapes from {} to {}.{}".format(filename, dbname, table_name))
+    print("load_shapes_from_file: loading shapes from {} to {}.{}".format(filename, dbname, table_name))
     if (wkt != "EPSG:4326"):
         srid_flags = "-s_SRS {} -t_srs EPSG:4326"
     else:
@@ -207,13 +211,12 @@ def load_shapes_from_file(db_connection, filename, table_name, id_col="id_0", na
                         db_user_ = db_user,
                         db_password_ = db_password,
                         srid_flags_ = srid_flags)
-    print("dasymmetric_from_file: running command \"{}\"".format(cmd))
+    print("load_shapes_from_file: running command \"{}\"".format(cmd))
     subprocess.call(cmd, shell=True)
-    print("dasymmetric_from_file: done loading shapes from file into postgres {}.{}".format(dbname, table_name))
 
 def dasymmetric_from_file(db_connection, filename, tract_data_parameters, id_col="id_0", name_col="name", geom_col="geometry", wkt="EPSG:4326"):
     load_shapes_from_file(db_connection, filename, "shapes_tmp", id_col, name_col, geom_col, wkt)
-    print("Joining on shapes and nlcd raster to interpolate census tract data.")
+    print("Joining on census shapes and nlcd raster to perform dasymmetric interpolation.")
     ogps = {
         "outer_geom_table": "shapes_tmp",
         "outer_id_col": id_col,
@@ -243,6 +246,61 @@ def dasymmetric_from_file(db_connection, filename, tract_data_parameters, id_col
 #conn.close(
 #exit(0)
 
+def dasymmetric_overlaps_sql(og1_parameters, og2_parameters, tract_and_lcd_parameters):
+    s1p =  parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og1_parameters.items()))
+    s2p =  parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og2_parameters.items()))
+    sql_str = sql.SQL(
+'''
+select "name1", "name2",
+       sum("tract_area_in_both" * "tract_pop" / "tract_area_in_s1") as "areal_overlap",
+       sum("dev_in_tract_s1_s2" * "tract_pop" / "dev_in_tract_s1") as "dasymmetric_overlap"
+from (
+    select s1.{name_col_1} as "name1",
+           s2.{name_col_2} as "name2",
+           t.{pop_col} as "tract_pop",
+           ST_AREA(ST_INTERSECTION(s1.{geom_col_1}, t.{data_geom_col}) :: geography) as "tract_area_in_s1",
+           ST_AREA(ST_INTERSECTION(ST_INTERSECTION(s1.{geom_col_1}, s2.{geom_col_2}), t.{data_geom_col}) :: geography) as "tract_area_in_both",
+           coalesce(ST_VALUECOUNT(ST_UNION(ST_CLIP(ST_CLIP(r.{raster_col}, s1.{geom_col_1}, true), t.{data_geom_col}, true)),1,true,1), 0)   as "dev_in_tract_s1",
+           coalesce(ST_VALUECOUNT(ST_UNION(ST_CLIP(ST_CLIP(ST_CLIP(r.{raster_col}, s1.{geom_col_1}, true), s2.{geom_col_2}, true), t.{data_geom_col}, true)),1,true,1), 0)   as "dev_in_tract_s1_s2"
+    from {shape_table_1} s1
+    inner join {shape_table_2} s2
+    on ST_INTERSECTS(s1.{geom_col_1}, s2.{geom_col_2})
+    inner join {tract_table} t
+    on ST_INTERSECTS(s1.{geom_col_1}, t.{data_geom_col}) AND ST_INTERSECTS(s2.{geom_col_2}, t.{data_geom_col})
+    inner join {raster_table} r
+    on ST_INTERSECTS(t.{data_geom_col}, r.{raster_col}) AND ST_INTERSECTS(s1.{geom_col_1}, r.{raster_col}) AND ST_INTERSECTS(s2.{geom_col_2}, r.{raster_col})
+    group by s1.{name_col_1}, s1.{geom_col_1}, s2.{name_col_2}, s2.{geom_col_2}, t.{data_geom_col}, t.{pop_col}
+)
+group by "name1", "name2"
+''').format(shape_table_1 = s1p["outer_geom_table"],
+            id_col_1 = s1p["outer_id_col"],
+            name_col_1 = s1p["outer_name_col"],
+            geom_col_1 = s1p["outer_geom_col"],
+            shape_table_2 = s2p["outer_geom_table"],
+            id_col_2 = s2p["outer_id_col"],
+            name_col_2 = s2p["outer_name_col"],
+            geom_col_2 = s2p["outer_geom_col"],
+            tract_table = sql.Identifier(tract_and_lcd_parameters["data_geom_table"]),
+            data_geom_col = sql.Identifier(tract_and_lcd_parameters["data_geom_col"]),
+            pop_col = sql.Identifier(tract_and_lcd_parameters["pop_col"]),
+            raster_table = sql.Identifier(tract_and_lcd_parameters["lc_rast_table"]),
+            raster_col = sql.Identifier(tract_and_lcd_parameters["lc_rast_col"])
+            )
+    return sql_str
+
+conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
+
+#load_shapes_from_file(conn,"/Users/adam/BlueRipple/GeoData/input_data/CongressionalDistricts/cd2024/CO.geojson","CO_cd")
+#load_shapes_from_file(conn,"/Users/adam/BlueRipple/GeoData/input_data/StateLegDistricts/2024/CO_sldu.geojson","CO_sldu")
+#og1p = {"outer_geom_table": "co_sldu", "outer_id_col": "id_0", "outer_geom_col": "geometry", "outer_name_col": "name"}
+#og2p = {"outer_geom_table": "co_cd", "outer_id_col": "id_0", "outer_geom_col": "geometry", "outer_name_col": "name"}
+#overlap_sql = dasymmetric_overlaps_sql(og1p, og2p, acs2022_and_lcd_params)
+#print(overlap_sql.as_string(conn))
+#cur = conn.cursor()
+#cur.execute(overlap_sql)
+#print(cur.fetchall())
+
+#exit(0)
 
 def dasymmetric_interpolation_sql(og_parameters, tract_and_lcd_parameters, db_cursor):
     parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og_parameters.items()))
