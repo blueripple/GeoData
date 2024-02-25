@@ -253,24 +253,31 @@ def dasymmetric_overlaps_sql(og1_parameters, og2_parameters, tract_and_lcd_param
 '''
 select "name1", "name2",
        sum("areal_wgt") as "areal_overlap",
-       sum("dasymmetric_wgt") as "dasymmetric_overlap"
+       sum("dasymmetric_wgt") as "dasymmetric_overlap",
+       sum("tract_pop_in_s1") as "s1_pop"
 from (
     select "name1", "name2",
            case
-            when "tract_area_in_s1" > 0
-            then "tract_area_in_both" * "tract_pop" / "tract_area_in_s1"
+            when "tract_area" > 0
+            then "tract_area_in_both" * "tract_pop" / "tract_area"
             else 0
            end as "areal_wgt",
            case
-            when "dev_in_tract_s1" > 0
-            then "dev_in_tract_s1_s2" * "tract_pop" / "dev_in_tract_s1"
+            when "dev_in_tract" > 0
+            then "dev_in_tract_s1_s2" * "tract_pop" / "dev_in_tract"
             else 0
-           end as "dasymmetric_wgt"
+           end as "dasymmetric_wgt",
+           case
+            when "tract_area" > 0
+            then "tract_area_in_s1" * "tract_pop" / "tract_area"
+            else 0
+           end as "tract_pop_in_s1"
     from (
         select "name1", "name2", "tract_pop",
+               ST_AREA("tract_geom" :: geography) as "tract_area",
                ST_AREA("tract_in_s1" :: geography) as "tract_area_in_s1",
                ST_AREA(ST_INTERSECTION("tract_in_s1", "geom2") :: geography) as "tract_area_in_both",
-               coalesce(ST_VALUECOUNT(ST_UNION(ST_CLIP("rast_in_tract", "geom1", true)),1,true,1), 0)   as "dev_in_tract_s1",
+               coalesce(ST_VALUECOUNT(ST_UNION("rast_in_tract"),1,true,1), 0)   as "dev_in_tract",
                coalesce(ST_VALUECOUNT(ST_UNION(ST_CLIP(ST_CLIP("rast_in_tract", "tract_geom", true), "geom2", true)),1,true,1), 0)   as "dev_in_tract_s1_s2"
         from (
             select s1.{name_col_1} as "name1",
@@ -290,7 +297,7 @@ from (
             inner join {raster_table} r
             on ST_INTERSECTS(t.{data_geom_col}, r.{raster_col}) AND ST_INTERSECTS(s1.{geom_col_1}, r.{raster_col}) AND ST_INTERSECTS(s2.{geom_col_2}, r.{raster_col})
         )
-        group by "name1", "name2", "tract_pop", "tract_in_s1", "geom2"
+        group by "name1", "name2", "tract_pop", "tract_geom", "tract_in_s1", "geom2"
     )
 )
 group by "name1", "name2"
