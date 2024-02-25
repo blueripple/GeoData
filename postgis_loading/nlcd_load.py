@@ -91,6 +91,7 @@ select rid,
        filename
 from {raster_table_name};
 CREATE INDEX nlcd_us_dev_convexhull_idx ON {new_table} USING GIST(ST_ConvexHull("rast"));
+SELECT AddRasterConstraints({new_table} :: name, "rast" :: name);
 ''').format(**parms)
     print("Reclassifying land cover in {raster_table_name} to developed only in {new_table}".format(**parms))
     print(sql_str.as_string(db_connection))
