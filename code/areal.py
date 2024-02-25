@@ -286,7 +286,7 @@ from (
             inner join {shape_table_2} s2
             on ST_INTERSECTS(s1.{geom_col_1}, s2.{geom_col_2})
             inner join {tract_table} t
-            on ST_INTERSECTS(s1.{geom_col_1}, t.{data_geom_col}) AND ST_INTERSECTS(s2.{geom_col_2}, t.{dzata_geom_col})
+            on ST_INTERSECTS(s1.{geom_col_1}, t.{data_geom_col}) AND ST_INTERSECTS(s2.{geom_col_2}, t.{data_geom_col})
             inner join {raster_table} r
             on ST_INTERSECTS(t.{data_geom_col}, r.{raster_col}) AND ST_INTERSECTS(s1.{geom_col_1}, r.{raster_col}) AND ST_INTERSECTS(s2.{geom_col_2}, r.{raster_col})
         )
