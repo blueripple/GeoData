@@ -252,33 +252,41 @@ def dasymmetric_overlaps_sql(og1_parameters, og2_parameters, tract_and_lcd_param
     sql_str = sql.SQL(
 '''
 select "name1", "name2",
-       sum("areal_wgt") as "areal_overlap",
-       sum("dasymmetric_wgt") as "dasymmetric_overlap",
-       sum("tract_pop_in_s1") as "s1_pop"
+       sum("areal_overlap_wgt" * "tract_pop") as "areal_overlap_pop",
+       sum("dasymmetric_overlap_wgt" * "tract_pop") as "dasymmetric_overlap_pop",
+       sum("dasymmetric_wgt" * "tract_pop") as "dasymmetric_pop"
 from (
-    select "name1", "name2",
+    select "name1", "name2", "tract_pop",
            case
             when "tract_area" > 0
-            then "tract_area_in_both" * "tract_pop" / "tract_area"
+            then "tract_area_in_both" / "tract_area"
             else 0
-           end as "areal_wgt",
+           end as "areal_overlap_wgt",
            case
             when "dev_in_tract" > 0
-            then "dev_in_tract_s1_s2" * "tract_pop" / "dev_in_tract"
+            then "dev_in_tract_s1_s2" / "dev_in_tract"
             else 0
-           end as "dasymmetric_wgt",
+           end as "dasymmetric_overlap_wgt",
            case
-            when "tract_area" > 0
-            then "tract_area_in_s1" * "tract_pop" / "tract_area"
+            when "dev_in_tract" > 0
+            then "dev_in_tract_s1" / "dev_in_tract"
             else 0
-           end as "tract_pop_in_s1"
+           end as "dasymmetric_wgt"
     from (
         select "name1", "name2", "tract_pop",
                ST_AREA("tract_geom" :: geography) as "tract_area",
-               ST_AREA("tract_in_s1" :: geography) as "tract_area_in_s1",
-               ST_AREA(ST_INTERSECTION("tract_in_s1", "geom2") :: geography) as "tract_area_in_both",
-               coalesce(ST_VALUECOUNT(ST_UNION("rast_in_tract"),1,true,1), 0)   as "dev_in_tract",
-               coalesce(ST_VALUECOUNT(ST_UNION(ST_CLIP(ST_CLIP("rast_in_tract", "tract_geom", true), "geom2", true)),1,true,1), 0)   as "dev_in_tract_s1_s2"
+               ST_AREA(ST_INTERSECTION(ST_INTERSECTION("geom1", "tract_geom"), "geom2") :: geography) as "tract_area_in_both",
+               coalesce(ST_VALUECOUNT("rast_in_tract",1,true,1), 0)   as "dev_in_tract",
+               case
+                when "rast_in_tract" && "geom1"
+                then coalesce(ST_VALUECOUNT(ST_CLIP("rast_in_tract", "geom1"),1,true,1), 0)
+                else 0
+               end as "dev_in_tract_s1",
+               case
+                when "rast_in_tract" && "geom1" and ST_CLIP("rast_in_tract", "geom1") && "geom2"
+                then coalesce(ST_VALUECOUNT(ST_CLIP(ST_CLIP("rast_in_tract", "geom1"), "geom2"),1,true,1), 0)
+                else 0
+               end as "dev_in_tract_s1_s2"
         from (
             select s1.{name_col_1} as "name1",
                    s1.{geom_col_1} as "geom1",
@@ -286,22 +294,103 @@ from (
                    s2.{geom_col_2} as "geom2",
                    t.{data_geom_col} as "tract_geom",
                    t.{pop_col} as "tract_pop",
-                   ST_INTERSECTION(s1.{geom_col_1}, t.{data_geom_col}) as "tract_in_s1",
-                   ST_INTERSECTION(ST_INTERSECTION(s1.{geom_col_1}, s2.{geom_col_2}), t.{data_geom_col}) as "tract_in_both",
-                   ST_CLIP(r.{raster_col}, t.{data_geom_col}, true) as "rast_in_tract"
+                   ST_Union(ST_CLIP(r.{raster_col}, t.{data_geom_col})) as "rast_in_tract"
             from {shape_table_1} s1
-            inner join {shape_table_2} s2
-            on ST_INTERSECTS(s1.{geom_col_1}, s2.{geom_col_2})
-            inner join {tract_table} t
-            on ST_INTERSECTS(s1.{geom_col_1}, t.{data_geom_col}) AND ST_INTERSECTS(s2.{geom_col_2}, t.{data_geom_col})
-            inner join {raster_table} r
-            on ST_INTERSECTS(t.{data_geom_col}, r.{raster_col}) AND ST_INTERSECTS(s1.{geom_col_1}, r.{raster_col}) AND ST_INTERSECTS(s2.{geom_col_2}, r.{raster_col})
+            inner join {shape_table_2} s2 on s1.{geom_col_1} && s2.{geom_col_2}
+            inner join {tract_table} t on s1.{geom_col_1} && t.{data_geom_col}
+            inner join {raster_table} r on t.{data_geom_col} && r.{raster_col}
+            group by "name1", "geom1", "name2", "geom2", "tract_pop", "tract_geom"
         )
-        group by "name1", "name2", "tract_pop", "tract_geom", "tract_in_s1", "geom2"
+
     )
 )
 group by "name1", "name2"
 
+''').format(shape_table_1 = s1p["outer_geom_table"],
+            id_col_1 = s1p["outer_id_col"],
+            name_col_1 = s1p["outer_name_col"],
+            geom_col_1 = s1p["outer_geom_col"],
+            shape_table_2 = s2p["outer_geom_table"],
+            id_col_2 = s2p["outer_id_col"],
+            name_col_2 = s2p["outer_name_col"],
+            geom_col_2 = s2p["outer_geom_col"],
+            tract_table = sql.Identifier(tract_and_lcd_parameters["data_geom_table"]),
+            data_geom_col = sql.Identifier(tract_and_lcd_parameters["data_geom_col"]),
+            pop_col = sql.Identifier(tract_and_lcd_parameters["pop_col"]),
+            raster_table = sql.Identifier(tract_and_lcd_parameters["lc_rast_table"]),
+            raster_col = sql.Identifier(tract_and_lcd_parameters["lc_rast_col"])
+            )
+    return sql_str
+
+
+def dasymmetric_overlaps_sql2(og1_parameters, og2_parameters, tract_and_lcd_parameters):
+    s1p =  parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og1_parameters.items()))
+    s2p =  parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og2_parameters.items()))
+    sql_str = sql.SQL(
+'''
+select "name1", "name2",
+       sum("areal_overlap_wgt" * "tract_pop") as "areal_overlap_pop",
+       sum("dasymmetric_overlap_wgt" * "tract_pop") as "dasymmetric_overlap_pop",
+       sum("dasymmetric_wgt" * "tract_pop") as "dasymmetric_pop"
+from (
+    select "name1", "name2", "tract_pop",
+               case
+                when "tract_area" > 0
+                then "tract_area_in_both" / "tract_area"
+                else 0
+               end as "areal_overlap_wgt",
+               case
+                when "dev_in_tract" > 0
+                then "dev_in_tract_s1_s2" / "dev_in_tract"
+                else 0
+               end as "dasymmetric_overlap_wgt",
+               case
+                when "dev_in_tract" > 0
+                then "dev_in_tract_s1" / "dev_in_tract"
+                else 0
+               end as "dasymmetric_wgt"
+    from (
+        select "name1", "name2", "tract_pop",
+               ST_AREA("tract_geom" :: geography) as "tract_area",
+               ST_AREA(ST_INTERSECTION(ST_INTERSECTION("geom1", "tract_geom"), "geom2") :: geography) as "tract_area_in_both",
+               coalesce(ST_VALUECOUNT("tract_raster",1,true,1), 0)   as "dev_in_tract",
+               case
+                when "tract_raster" && "geom1"
+                then coalesce(ST_VALUECOUNT(ST_CLIP("tract_raster", "geom1"),1,true,1), 0)
+                else 0
+               end as "dev_in_tract_s1",
+               case
+                when "tract_raster" && "geom1" and ST_CLIP("tract_raster", "geom1") && "geom2"
+                then coalesce(ST_VALUECOUNT(ST_CLIP(ST_CLIP("tract_raster", "geom1"), "geom2"),1,true,1), 0)
+                else 0
+               end as "dev_in_tract_s1_s2"
+        from (
+            select s1.{name_col_1} as "name1",
+                   s1.{geom_col_1} as "geom1",
+                   s2.{name_col_2} as "name2",
+                   s2.{geom_col_2} as "geom2",
+                   t."tract_geom" as "tract_geom",
+                   t."tract_pop" as "tract_pop",
+                   t."tract_raster" as "tract_raster"
+            from {shape_table_1} as s1
+            inner join {shape_table_2} s2 on s1.{geom_col_1} && s2.{geom_col_2}
+            inner join (
+                select t.{pop_col} as "tract_pop", t.{data_geom_col} as "tract_geom",
+                       ST_CLIP(ST_Union(r.{raster_col}), t.{data_geom_col}) as "tract_raster"
+                from {tract_table} as t
+                inner join (
+                 select ST_Union(s1.{geom_col_1}) as "s1_union"
+                 from {shape_table_1} s1
+                ) as u
+                on t.{data_geom_col} && u.s1_union
+                inner join {raster_table} r
+                on r.{raster_col} && t.{data_geom_col}
+                group by "tract_pop", "tract_geom"
+            ) t on s1.{geom_col_1} && t."tract_geom"
+        )
+    )
+)
+group by "name1", "name2"
 ''').format(shape_table_1 = s1p["outer_geom_table"],
             id_col_1 = s1p["outer_id_col"],
             name_col_1 = s1p["outer_name_col"],
@@ -324,7 +413,7 @@ conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
 #load_shapes_from_file(conn,"/Users/adam/BlueRipple/GeoData/input_data/StateLegDistricts/2024/CO_sldu.geojson","CO_sldu")
 og1p = {"outer_geom_table": "co_sldu", "outer_id_col": "id_0", "outer_geom_col": "geometry", "outer_name_col": "name"}
 og2p = {"outer_geom_table": "co_cd", "outer_id_col": "id_0", "outer_geom_col": "geometry", "outer_name_col": "name"}
-overlap_sql = dasymmetric_overlaps_sql(og1p, og2p, acs2022_and_lcd_params)
+overlap_sql = dasymmetric_overlaps_sql2(og1p, og2p, acs2022_and_lcd_params)
 print(overlap_sql.as_string(conn))
 cur = conn.cursor()
 cur.execute(overlap_sql)
