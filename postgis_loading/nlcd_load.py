@@ -20,7 +20,7 @@ raster_dir = "/Users/adam/BlueRipple/GeoData/input_data/NLCD"
 #tract_data = [data_dir + "nhgis0042_d262_20225_tract_E_.csv",
 #              data_dir + "nhgis0042_d263_20225_tract_E_.csv"]
 
-dbname = "tract_test"
+dbname = "tracts_and_nlcd"
 schema_name = "public"
 
 conus_nlcd = {
@@ -104,8 +104,69 @@ SELECT AddRasterConstraints({new_table} :: name, "rast" :: name);
 #load_raster(AK_nlcd)
 #load_raster(US_nlcd)
 conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
-developed_land_cover(raster_table_info, conn)
+#developed_land_cover(raster_table_info, conn)
+#conn.close()
+
+def add_rasters_sql(raster_info, geometry_info):
+    raster_parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), raster_info.items()))
+    new_table_name = geometry_info["geom_table"] + "_rast"
+    sql_str = sql.SQL(
+'''
+DROP TABLE IF EXISTS {new_table};
+CREATE TABLE {new_table} as
+select gt.*, rt."rast" as "rast"
+from {geometry_table} gt
+inner join (
+    select g.{geometry_id_col} as "id", ST_CLIP(ST_UNION(ST_Transform(r.{raster_col}, (SELECT {raster_table}.{raster_col} from {raster_table} fetch first 1 row only))), g.{geometry_col}) as "rast"
+    from {geometry_table} g
+    inner join {raster_table} r
+    on r.{raster_col} && g.{geometry_col}
+    group by g.{geometry_id_col}, g.{geometry_col}
+) rt
+on gt.{geometry_id_col} = rt."id";
+CREATE INDEX {new_table_pkey} ON {new_table}({geometry_id_col});
+CREATE INDEX {new_table_geom_idx} ON {new_table} USING GIST ({geometry_col});
+CREATE INDEX {new_table_convexhull_idx} ON {new_table} USING GIST(ST_ConvexHull("rast"));
+SELECT AddRasterConstraints({new_table_l} :: name, 'rast' :: name);
+''').format(geometry_table = sql.Identifier(geometry_info["geom_table"]),
+            geometry_id_col = sql.Identifier(geometry_info["geom_id_col"]),
+            geometry_col = sql.Identifier(geometry_info["geom_col"]),
+            raster_table = sql.Identifier(raster_info["raster_table_name"]),
+            raster_col = sql.Identifier(raster_info["rast_col"]),
+            new_table = sql.Identifier(new_table_name),
+            new_table_l = sql.Literal(new_table_name),
+            new_table_pkey = sql.Identifier(new_table_name + "_pkey"),
+            new_table_geom_idx = sql.Identifier(new_table_name + "_geom_idx"),
+            new_table_convexhull_idx = sql.Identifier(new_table_name + "_convexhull_idx")
+            )
+    return sql_str
+
+dev_raster_table = {
+    "raster_table_name": "nlcd_us_dev",
+    "rast_col": "rast"
+}
+
+co_params = {
+    "geom_table": "co_cd",
+    "geom_id_col": "id_0",
+    "geom_col": "geometry"
+}
+
+acs2022_params = {
+    "geom_table": "tracts2022_acs2017_2022",
+    "geom_id_col": "geoid",
+    "geom_col": "geom"
+}
+
+ar_sql = add_rasters_sql(dev_raster_table, co_params)
+
+print(ar_sql.as_string(conn))
+cur = conn.cursor()
+cur.execute(ar_sql)
+conn.commit()
 conn.close()
+#print(cur.fetchall())
+exit(0)
 
 def add_rasters_to_geometries(raster_info, geometry_info):
     inner_sql = sql.SQL('''\
