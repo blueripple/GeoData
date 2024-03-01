@@ -121,6 +121,9 @@ inner join (
     from {geometry_table} g
     inner join {raster_table} r
     on r.{raster_col} && g.{geometry_col}
+       and g.{geometry_pop_col} > 0
+       and g.{geometry_id_col} not in ('02016000100', '02185000200', '15003981200')
+       and coalesce(ST_Valuecount(r.{raster_col},1,true,1),0) > 0
     group by g.{geometry_id_col}, g.{geometry_col}
 ) rt
 on gt.{geometry_id_col} = rt."id";
@@ -131,6 +134,7 @@ SELECT AddRasterConstraints({new_table_l} :: name, 'rast' :: name);
 ''').format(geometry_table = sql.Identifier(geometry_info["geom_table"]),
             geometry_id_col = sql.Identifier(geometry_info["geom_id_col"]),
             geometry_col = sql.Identifier(geometry_info["geom_col"]),
+            geometry_pop_col = sql.Identifier(geometry_info["geom_pop_col"]),
             raster_table = sql.Identifier(raster_info["raster_table_name"]),
             raster_col = sql.Identifier(raster_info["rast_col"]),
             new_table = sql.Identifier(new_table_name),
@@ -155,10 +159,11 @@ co_params = {
 acs2022_params = {
     "geom_table": "tracts2022_acs2017_2022",
     "geom_id_col": "geoid",
-    "geom_col": "geom"
+    "geom_col": "geom",
+    "geom_pop_col": "AQNFE001"
 }
 
-ar_sql = add_rasters_sql(dev_raster_table, co_params)
+ar_sql = add_rasters_sql(dev_raster_table, acs2022_params)
 
 print(ar_sql.as_string(conn))
 cur = conn.cursor()

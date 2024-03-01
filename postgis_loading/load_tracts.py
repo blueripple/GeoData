@@ -11,13 +11,18 @@ import itertools
 
 dbname = "tracts_and_nlcd"
 schema_name = "public"
-shape_table = "census_tracts_2022"
 shape_cols = ["gisjoin", "geoid", "geom", "statefp", "countyfp"]
+
+shape_table = "tracts2022_shapes"
 #data_tables = ["nhgis0038_ds249", "nhgis0038_ds250"]
+#data_tables = ["nhgis0040_ds254", "nhgis0040_ds255"]
 data_tables = ["nhgis0042_ds262", "nhgis0042_ds263"]
+
+join_result_table = "tracts2022_acs2017_2022"
+
 data_common_cols = ["GISJOIN", "STUSAB", "COUNTY", "COUNTYA", "GEO_ID"]
 set_dcc = set(data_common_cols)
-data_col_pat = re.compile('[A-Z]+E\d\d\d')
+data_col_pat = re.compile('[A-Z\d]+E\d\d\d')
 
 conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
 cur = conn.cursor()
@@ -44,6 +49,7 @@ def create_data_view(tbl_name):
                                                                                                   cols = sql.SQL(', ').join(map(sql.Identifier,view_cols)),
                                                                                                   table = sql.Identifier(tbl_name))
 
+    print(view_sql.as_string(conn))
     cur.execute(view_sql)
     return (view_name, data_cols)
 
@@ -69,7 +75,6 @@ def join_columns(vi):
     table_alias = "v" + str(view_number)
     return sql.SQL(', ').join(map(lambda x: sql.Identifier(table_alias, x),view_data_cols))
 
-join_result_table = "tracts2022_shp_and_data"
 
 join_sql = sql.SQL('''
 CREATE TABLE {nt}

@@ -29,10 +29,10 @@ def aggCongressional(stateAbbreviation, stateFIPS):
                         ,"input_data/CongressionalDistricts/cd2024/" + stateAbbreviation + ".geojson"
                         ,"NAME"
                         ,"DistrictName"
-                        ,"../bigData/Census/cd2024_ACS2022/" + stateAbbreviation + ".csv"
+                        ,"../bigData/Census/cd2024_ACS2021/" + stateAbbreviation + ".csv"
                         ,"../research/data/districtStats/2024/" + stateAbbreviation + "_congressional.csv"
                         )
-    doAggregation(acs2022, aggTo, stateFIPS)
+    doAggregation(acs2021, aggTo, stateFIPS)
     print(stateAbbreviation, " done.")
 
 def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
@@ -43,11 +43,11 @@ def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
                         ,"input_data/StateLegDistricts/2024/" + stateAbbreviation + "_sldu.geojson"
                         ,"NAME"
                         ,"DistrictName"
-                        ,"../bigData/Census/sldu2024_ACS2022/" + stateAbbreviation + ".csv"
+                        ,"../bigData/Census/sldu2024_ACS2021/" + stateAbbreviation + ".csv"
                         ,"../research/data/districtStats/2024/" + stateAbbreviation + "_sldu.csv"
 
                         )
-    doAggregation(acs2022, aggTo, stateFIPS)
+    doAggregation(acs2021, aggTo, stateFIPS)
     print("done")
     if not(stateAbbreviation in upperOnly):
         print("Lower")
@@ -56,10 +56,10 @@ def aggSLD(stateAbbreviation, stateFIPS, upperOnly):
                         ,"input_data/StateLegDistricts/2024/" + stateAbbreviation + "_sldl.geojson"
                         ,"NAME"
                         ,"DistrictName"
-                        ,"../bigData/Census/sldl2024_ACS2022/" + stateAbbreviation + ".csv"
+                        ,"../bigData/Census/sldl2024_ACS2021/" + stateAbbreviation + ".csv"
                         ,"../research/data/districtStats/2024/" + stateAbbreviation + "_sldl.csv"
                         )
-        doAggregation(acs2022, aggTo, stateFIPS)
+        doAggregation(acs2021, aggTo, stateFIPS)
         print("done")
 
 
