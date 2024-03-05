@@ -74,7 +74,7 @@ def make_sld_cd_overlaps(stateFIPS, stateAB, upperOnly):
     sldu_shapefile = "{}/{}_sldu.geojson".format(sld_shape_dir, stateAB)
     overlap_file_u = (sld_overlap_dir + '/{}_SLDU_CD.csv').format(stateAB)
     if geoFunctions.resultIsOlderOrMissing(overlap_file_u, [sldu_shapefile, cd_shapefile]):
-        print("(Re)building overlaps between upper house of state and legislature and congressional districts for {}".format(stateAB))
+        print("(Re)building overlaps between upper house of state legislature and congressional districts for {}".format(stateAB))
         dfo = areal.dasymmetric_overlap_from_files(conn, sldu_shapefile, cd_shapefile, tract_and_lcd)
         print("saving in {}".format(overlap_file_u))
         dfo.to_csv(overlap_file_u, header=True, index=False)
@@ -107,4 +107,6 @@ sldStatesAndFIPS = si.fipsFromAbbr.copy()
 sldStatesAndFIPS.pop("DC")
 #list(map(lambda t:make_sld_csvs(t[1], t[0], si.sldUpperOnly), sldStatesAndFIPS.items()))
 
-list(map(lambda t:make_sld_cd_overlaps(t[1], t[0], si.sldUpperOnly), sldStatesAndFIPS.items()))
+overlapSLDStatesAndFIPS = si.fipsFromAbbr.copy()
+[overlapSLDStatesAndFIPS.pop(key) for key in si.oneDistrict.copy().union(si.noMaps)]
+list(map(lambda t:make_sld_cd_overlaps(t[1], t[0], si.sldUpperOnly), overlapSLDStatesAndFIPS.items()))

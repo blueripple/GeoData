@@ -310,30 +310,27 @@ def dasymmetric_overlap(og1_parameters, og2_parameters, tract_and_lcd_parameters
     cur.execute(names2_sql)
     names2 = list(map(lambda x: inTuple(0,x), cur.fetchall()))
     overlap_sql = dasymmetric_overlaps_sql3(og1_parameters, og2_parameters, tract_and_lcd_parameters)
-    n2z = {}
-    for i in names2:
-        n2z[i] = 0
-    overlapMap = {}
+    nz = {}
     for i in names1:
-        overlapMap[i] = n2z.copy()
-    totalPop = {}
-#    print(overlapMap)
-#    df0 = pd.DataFrame.from_dict(overlapMap, orient='index', columns=names2)
-#    df0.insert(0, 'name', names1)
-#    print(df0)
-#    exit(0)
+        nz[i] = 0
+    overlapMap = {'NAME': {}, 'TotalPopulation': {}}
+    for i in names2:
+        overlapMap[i] = nz.copy()
     print("running overlap query...")
     cur.execute(overlap_sql)
     for x in cur.fetchall():
-        totalPop[x[0]] = x[4]
-        overlapMap[x[0]][x[1]] = round(x[2])
-    df = pd.DataFrame.from_dict(overlapMap, orient='index', columns=names2)
-    totalPopList = list(map(lambda x: round(x[1]), sorted(totalPop.items(), key=lambda x: x[0])))
-    df.insert(0,"TotalPopulation", totalPopList)
-    df.insert(0, 'NAME', names1)
+        overlapMap['NAME'][x[0]] = x[0]
+        overlapMap['TotalPopulation'][x[0]] = round(x[4])
+        overlapMap[x[1]][x[0]] = round(x[2])
+#    print(overlapMap)
+    df = pd.DataFrame.from_dict(overlapMap, orient='columns')
     return df
 
 def dasymmetric_overlap_from_files(db_connection, filename1, filename2, tract_data_parameters, id_col="id_0", name_col="name", geom_col="geometry", wkt="EPSG:4326"):
+    cur = db_connection.cursor()
+    cur.execute("drop table if exists shapes1_tmp")
+    cur.execute("drop table if exists shapes2_tmp")
+    db_connection.commit()
     load_shapes_from_file(db_connection, filename1, "shapes1_tmp", id_col, name_col, geom_col, wkt)
     load_shapes_from_file(db_connection, filename2, "shapes2_tmp", id_col, name_col, geom_col, wkt)
     og1ps = {
@@ -358,18 +355,18 @@ def dasymmetric_overlap_from_files(db_connection, filename1, filename2, tract_da
         return res
     finally:
         print("Dropping temp shapes tables.")
-        cur = db_connection.cursor()
         cur.execute("drop table shapes1_tmp")
         cur.execute("drop table shapes2_tmp")
         db_connection.commit()
 
-#conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
+conn = psycopg2.connect("dbname=" + dbname + " user=postgres")
 
 #load_shapes_from_file(conn,"/Users/adam/BlueRipple/GeoData/input_data/CongressionalDistricts/cd2024/CO.geojson","CO_cd")
 #load_shapes_from_file(conn,"/Users/adam/BlueRipple/GeoData/input_data/StateLegDistricts/2024/CO_sldu.geojson","CO_sldu")
 #og1p = {"outer_geom_table": "co_sldu", "outer_id_col": "id_0", "outer_geom_col": "geometry", "outer_name_col": "name"}
 #og2p = {"outer_geom_table": "co_cd", "outer_id_col": "id_0", "outer_geom_col": "geometry", "outer_name_col": "name"}
-#dasymmetric_overlap(og1p, og2p, acs2022_and_lcd_params, conn)
+#df = dasymmetric_overlap(og1p, og2p, acs2022_and_lcd_params, conn)
+#print(df)
 #overlap_sql = dasymmetric_overlaps_sql3(og1p, og2p, acs2022_and_lcd_params)
 #print(overlap_sql.as_string(conn))
 #cur = conn.cursor()
