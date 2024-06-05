@@ -71,7 +71,7 @@ def extensive_cols(tract_and_lcd_parameters, db_cursor):
                                     and c != tract_and_lcd_parameters["pop_col"]
                                     and c not in tract_and_lcd_parameters["intensive_cols"])
                  ]
-    return data_cols
+    return list(set(data_cols))
 
 def dasymmetric_interpolation_sql2(og_parameters, tract_and_lcd_parameters, db_cursor):
     parms = dict(map(lambda k_v: (k_v[0], sql.Identifier(k_v[1])), og_parameters.items()))
