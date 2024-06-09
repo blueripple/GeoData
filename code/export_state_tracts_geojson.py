@@ -60,7 +60,6 @@ FROM {shp_table} t ''').format(shp_table = sql.Identifier(shape_table)
     if feature_collection:
         return inTuple(0,cur.fetchone())
     else:
-#        return [inTuple(0,cur.fetchone())]
         return list(map(lambda x: inTuple(0,x), cur.fetchall()))
 
 
@@ -72,12 +71,6 @@ def geoms_to_topojson(shape_table, geom_col_name="geom", id_col_name="id", **kwa
     topo = tp.Topology(gj, prequantize=200)
     return topo
 
-
-
-#r = geoms_to_geojson(shape_table, "geom", "id", simplify=10, maxdec=7, feature_collection=False)
-#print(r)
-#exit(0)
-
 def convert_and_write(geojson, out_dir, fname, tmp_name="tracts"):
     fpath = out_dir + "/" + fname
     print("writing geojson feature collection to \"" + fpath + "\"...")
@@ -85,7 +78,6 @@ def convert_and_write(geojson, out_dir, fname, tmp_name="tracts"):
         json.dump(geojson, f) #f.write(geojson.to_json())
     subprocess.run(["geo2topo","-o", fpath, tmp_name])
     subprocess.run(["rm",tmp_name])
-
 
 def geojson_list_to_featurecollection(gjl):
     geojson = {'type': "FeatureCollection"}
@@ -99,14 +91,6 @@ def write_extracted_state(state_fips, state_abbr, out_dir, tmp_name="tracts"):
     geojson = geojson_list_to_featurecollection(geoms_to_geojson(shape_table,"goem","id", where_col="statefp", feature_collection=False, where_val=str(state_fips), simplify=10, maxdec=6))
     convert_and_write(geojson, out_dir, fname, tmp_name)
 
-#    print("writing geojson feature collection to \"" + fname + "\"...")
-#    with open(tmp_name, "w") as f:
-#        json.dump(geojson, f) #f.write(geojson.to_json())
-#    subprocess.run(["geo2topo","-o", fname, tmp_name])
-#    subprocess.run(["rm",tmp_name])
-
-#write_extracted_state(12, "NY",".")
-#exit(0)
 
 all_geojson = geojson_list_to_featurecollection(geoms_to_geojson(shape_table,"goem","id", simplify=10, feature_collection=False, maxdec=6))
 convert_and_write(all_geojson, "/Users/adam/BlueRipple/bigData/GeoJSON", "US_tracts_2022_topo.json")
@@ -116,28 +100,3 @@ si = geoFunctions.loadStatesInfo()
 statesAndFIPS = si.fipsFromAbbr.copy()
 list(map(lambda t:write_extracted_state(t[1], t[0],"/Users/adam/BlueRipple/bigData/GeoJSON/states"), statesAndFIPS.items()))
 #print(extract_state(12))
-
-def geoms_togeojson_state(state_fips, simplify=10, maxdec=6):
-    sql_str  = sql.SQL('''
-SELECT jsonb_build_object(
-    'type', 'FeatureCollection',
-    'features', jsonb_agg(feature)
-    )
-    FROM (
-    SELECT jsonb_build_object(
-      'type', 'Feature',
-      'id', geoid,
-      'geometry', ST_AsGeoJSON(ST_Transform(ST_Simplify(ST_Transform(t.geom, 54032), {simpl}), 4326), {md})::jsonb,
-      'properties', to_jsonb(t.*) - 'geoid' - 'geom'
-     )
-    FROM {shp_table} t
-    WHERE {state_fips_col_name}::integer = {given_state_fips}
-    ) AS feature
-    ''').format(shp_table = sql.Identifier(shape_table)
-                , simpl = sql.Literal(simplify)
-                , md = sql.Literal(maxdec)
-                , state_fips_col_name = sql.Identifier("t",state_fips_col)
-                , given_state_fips = sql.Literal(state_fips))
-#    print(sql_str.as_string(conn))
-    cur.execute(sql_str)
-    return inTuple(0,cur.fetchone())
