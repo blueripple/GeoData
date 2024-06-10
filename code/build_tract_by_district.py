@@ -22,7 +22,8 @@ def tracts_by_district(state_fips, state_abbreviation, d_type, d_shp_file, d_nam
     sql_str = sql.SQL('''
 SELECT {d_name}, {t_id}
 FROM {tract_table} as t
-inner JOIN {d_table} as d ON ST_OVERLAPS({t_geom}, {d_geom}) OR ST_CONTAINS({d_geom}, {t_geom})
+inner JOIN {d_table} as d ON (ST_OVERLAPS({t_geom}, {d_geom}) OR ST_CONTAINS({d_geom}, {t_geom}))
+WHERE ST_AREA(ST_INTERSECTION({t_geom}, {d_geom})) > 0.01 * ST_AREA({t_geom})
     ''').format(d_name = sql.Identifier("d", d_name_col)
                 , t_id = sql.Identifier("t", tract_id_col)
                 , tract_table = sql.Identifier(tract_shapes)
